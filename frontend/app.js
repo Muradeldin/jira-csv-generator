@@ -383,12 +383,19 @@ function clearAll() {
 }
 
 // ===== Wire up and start =====
+
 addRowBtn.addEventListener("click", () => addRow());
 saveBtn.addEventListener("click", saveCSV);
 saveDbBtn.addEventListener("click", saveDB);
 loadDbBtn.addEventListener("click", loadFromDB);
 clearDbBtn.addEventListener("click", clearDB);
 clearBtn.addEventListener("click", clearAll);
+document.addEventListener('keydown', function (event) {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+    event.preventDefault(); // Prevent the browser's default Save dialog
+    saveDB();
+  }
+});
 
 // Start with one empty row
 addRow();
