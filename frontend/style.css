@@ -193,3 +193,32 @@ textarea {
 body.modal-open { 
   overflow: hidden; 
 }
+
+.labels-picker {
+  display: flex;
+  flex-direction: column; /* stack vertically */
+  gap: 10px;
+  padding-left: 6px;
+  padding-right: 6px;
+  align-items: stretch;   /* let pills stretch if you want full-width */
+}
+
+.label-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #cfd4dc;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+  background: #fff;
+  width: 100%; justify-content: center;
+}
+
+.label-pill[aria-pressed="true"] {
+  background: #0052cc;
+  color: #fff;
+  border-color: #0052cc;
+}
+
