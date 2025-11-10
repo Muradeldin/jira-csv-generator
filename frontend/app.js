@@ -3,9 +3,10 @@ const API_BASE = `${location.protocol}//${location.hostname}:8000`;
 
 // ===== UI config =====
 const ISSUE_TYPES = ["Test", "Bug"];
-const ASSIGNEES = ["MURADN@rafael.co.il", "ROSF@rafael.co.il", "IDANBARD@rafael.co.il"];
+const ASSIGNEES = ["MURADN@rafael.co.il", "ROSF@rafael.co.il", "IDANBARD@rafael.co.il", "moranmos@rafael.co.il", "yotamma@rafael.co.il"];
 const TEST_TEMPLATE = `*Preconditions:*\n\n\n\n*Expected Results:*\n\n\n\n*Test Type:*`;
 const BUG_TEMPLATE  = `*Steps to Reproduce:*\n\n\n\n*Expected Results:*\n\n\n\n*Actual Results:*`;
+const LABELS = ["Backend", "Frontend", "AUTO_TEST"];
 
 // ===== DOM =====
 const rowsEl    = document.getElementById("rows");
@@ -60,6 +61,7 @@ function gatherRows() {
     const descEl    = tds[2].querySelector("textarea");
     const linkEl    = tds[3].querySelector("input");
     const assignEl  = tds[4].querySelector("select");
+    const labelEl   = tds[5].querySelector(".labels-hidden");
     const nsocEl    = tds[5].querySelector("input");
 
     const row = {
@@ -68,11 +70,54 @@ function gatherRows() {
       description: (descEl?.value || "").trim(),
       link_relates: (linkEl?.value || "").trim(),
       assignee: (assignEl?.value || "").trim(),
+      labels: (labelEl?.value || "").trim(), 
       nsoc_team: (nsocEl?.value || "").trim()
     };
     if (Object.values(row).some(v => v.length)) data.push(row);
   }
   return data;
+}
+
+function parseLabels(str) {
+  if (!str) return [];
+  return str.split(/[,\s]+/).filter(Boolean);
+}
+
+function createLabelsPicker(initialLabels = []) {
+  const selected = new Set(initialLabels);
+
+  const wrap = document.createElement("div");
+  wrap.className = "labels-picker";
+
+  // hidden input holds the Jira-compatible value (space-separated)
+  const hidden = document.createElement("input");
+  hidden.type = "hidden";
+  hidden.className = "labels-hidden";
+
+  function updateHidden() {
+    hidden.value = Array.from(selected).join(" ");
+  }
+
+  function makePill(name) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "label-pill";
+    btn.setAttribute("aria-pressed", selected.has(name) ? "true" : "false");
+    btn.textContent = name;
+    btn.addEventListener("click", () => {
+      if (selected.has(name)) selected.delete(name);
+      else selected.add(name);
+      btn.setAttribute("aria-pressed", selected.has(name) ? "true" : "false");
+      updateHidden();
+    });
+    return btn;
+  }
+
+  LABELS.forEach(lbl => wrap.appendChild(makePill(lbl)));
+  updateHidden();
+  wrap.appendChild(hidden);
+
+  return wrap; // cell will contain this
 }
 
 // ===== Modal controls =====
@@ -200,6 +245,9 @@ function addRow(initial = {}) {
   const assignee = makeSelect(ASSIGNEES, "Select assignee");
   if (initial.assignee && ASSIGNEES.includes(initial.assignee)) assignee.value = initial.assignee;
 
+// Labels (multi-select)
+  const labelsPicker = createLabelsPicker(parseLabels(initial.labels));
+
   // NSOC_Team
   const nsoc = Object.assign(document.createElement("input"), { type: "text", value: initial.nsoc_team || "CYMNG" });
 
@@ -209,12 +257,15 @@ function addRow(initial = {}) {
   });
   delBtn.addEventListener("click", () => { tr.remove(); });
 
+  
+
   // Build row
   tr.appendChild(makeCell(summaryWrap));
   tr.appendChild(makeCell(issueType));
   tr.appendChild(makeCell(descWrapper));
   tr.appendChild(makeCell(linkRel));
   tr.appendChild(makeCell(assignee));
+  tr.appendChild(makeCell(labelsPicker));
   tr.appendChild(makeCell(nsoc));
 
   const actions = document.createElement("div");
