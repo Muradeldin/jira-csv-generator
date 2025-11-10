@@ -4,7 +4,7 @@ const API_BASE = `${location.protocol}//${location.hostname}:8000`;
 // ===== UI config =====
 const ISSUE_TYPES = ["Test", "Bug"];
 const ASSIGNEES = ["MURADN@rafael.co.il", "ROSF@rafael.co.il", "IDANBARD@rafael.co.il", "moranmos@rafael.co.il", "yotamma@rafael.co.il"];
-const TEST_TEMPLATE = `*Preconditions:*\n\n\n\n*Expected Results:*\n\n\n\n*Test Type:*`;
+const TEST_TEMPLATE = `*Preconditions:*\n\n\n\n*Expected Results:*\n\n\n\n*Test Type:*\nManual + Auto`;
 const BUG_TEMPLATE  = `*Steps to Reproduce:*\n\n\n\n*Expected Results:*\n\n\n\n*Actual Results:*`;
 const LABELS = ["Backend", "Frontend", "AUTO_TEST"];
 
@@ -52,6 +52,7 @@ function makeSelect(options, placeholder = "") {
   }
   return sel;
 }
+
 function gatherRows() {
   const data = [];
   for (const tr of rowsEl.querySelectorAll("tr")) {
@@ -62,7 +63,7 @@ function gatherRows() {
     const linkEl    = tds[3].querySelector("input");
     const assignEl  = tds[4].querySelector("select");
     const labelEl   = tds[5].querySelector(".labels-hidden");
-    const nsocEl    = tds[5].querySelector("input");
+    const nsocEl    = tds[6].querySelector("input"); 
 
     const row = {
       summary: (summaryEl?.value || "").trim(),
@@ -70,7 +71,7 @@ function gatherRows() {
       description: (descEl?.value || "").trim(),
       link_relates: (linkEl?.value || "").trim(),
       assignee: (assignEl?.value || "").trim(),
-      labels: (labelEl?.value || "").trim(), 
+      labels: (labelEl?.value || "").trim(),
       nsoc_team: (nsocEl?.value || "").trim()
     };
     if (Object.values(row).some(v => v.length)) data.push(row);

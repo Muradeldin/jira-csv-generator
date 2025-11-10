@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import List, Any, Dict
+from typing import List, Any, Dict, Optional
 import csv, os, datetime
 
 # ---------- Mongo ----------
@@ -18,8 +18,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---------- CSV (unchanged) ----------
-CSV_HEADERS = ['Summary', 'Issue Type', 'Description', 'Link "Relates"', 'Assignee', 'NSOC_Team']
+# ---------- CSV (UPDATED: added Labels column) ----------
+CSV_HEADERS = ['Summary', 'Issue Type', 'Description', 'Link "Relates"', 'Assignee', 'Labels', 'NSOC_Team']
 
 class Row(BaseModel):
     summary: str = ""
@@ -27,6 +27,7 @@ class Row(BaseModel):
     description: str = ""
     link_relates: str = ""
     assignee: str = ""
+    labels: str = ""       
     nsoc_team: str = ""
 
 class Payload(BaseModel):
@@ -36,7 +37,7 @@ class Payload(BaseModel):
 def save_csv(payload: Payload):
     rows = [
         r for r in payload.rows
-        if any([r.summary, r.issue_type, r.description, r.link_relates, r.assignee, r.nsoc_team])
+        if any([r.summary, r.issue_type, r.description, r.link_relates, r.assignee, r.labels, r.nsoc_team])
     ]
     if not rows:
         raise HTTPException(status_code=400, detail="No non-empty rows to save.")
@@ -48,7 +49,7 @@ def save_csv(payload: Payload):
         writer = csv.writer(f)
         writer.writerow(CSV_HEADERS)
         for r in rows:
-            writer.writerow([r.summary, r.issue_type, r.description, r.link_relates, r.assignee, r.nsoc_team])
+            writer.writerow([r.summary, r.issue_type, r.description, r.link_relates, r.assignee, r.labels, r.nsoc_team])
     return {"ok": True, "filename": filename}
 
 @app.get("/download/{filename}")
@@ -82,7 +83,7 @@ def _mongo_indexes():
     col.create_index([("summary", ASCENDING)])
     col.create_index([("issue_type", ASCENDING)])
     col.create_index([("nsoc_team", ASCENDING)])
-    # created_at if you want (we’ll add it on insert below)
+    col.create_index([("labels", ASCENDING)]) 
 
 # ---------- DB endpoints (Mongo) ----------
 @app.post("/save-db")
@@ -91,26 +92,39 @@ def save_db(payload: Dict[str, Any] = Body(...)):
     if not isinstance(rows, list) or not rows:
         raise HTTPException(status_code=400, detail='"rows" must be a non-empty array')
 
+    # Remove all existing documents first
+    col.delete_many({})
+
     docs: List[Dict[str, str]] = []
     for r in rows:
         if not isinstance(r, dict):
             continue
-        if any([r.get("summary"), r.get("issue_type"), r.get("description"),
-                r.get("link_relates"), r.get("assignee"), r.get("nsoc_team")]):
+        if any([
+            r.get("summary"),
+            r.get("issue_type"),
+            r.get("description"),
+            r.get("link_relates"),
+            r.get("assignee"),
+            r.get("labels"),
+            r.get("nsoc_team")
+        ]):
             docs.append({
                 "summary": str(r.get("summary", "")).strip(),
                 "issue_type": str(r.get("issue_type", "")).strip(),
                 "description": str(r.get("description", "")).strip(),
                 "link_relates": str(r.get("link_relates", "")).strip(),
                 "assignee": str(r.get("assignee", "")).strip(),
+                "labels": str(r.get("labels", "")).strip(),
                 "nsoc_team": str(r.get("nsoc_team", "")).strip(),
                 "created_at": datetime.datetime.utcnow(),
             })
+
     if not docs:
         raise HTTPException(status_code=400, detail="No non-empty rows to save.")
 
     res = col.insert_many(docs)
-    return {"ok": True, "inserted": len(res.inserted_ids)}
+    return {"ok": True, "inserted": len(res.inserted_ids), "mode": "overwrite"}
+
 
 @app.get("/cases")
 def list_cases():
