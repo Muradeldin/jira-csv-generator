@@ -338,7 +338,7 @@ async function saveDB() {
     });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     const json = await res.json();
-    statusEl.textContent = `Saved to DB ✓ — inserted ${json.inserted} row(s).`;
+    statusEl.textContent = `Saved to DB.`;
   } catch (err) {
     console.error(err);
     statusEl.textContent = "Error saving to DB. See console.";
@@ -367,7 +367,7 @@ async function clearDB() {
     const res = await fetch(`${API_BASE}/cases`, { method: "DELETE" });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     await res.json();
-    statusEl.textContent = "DB cleared ✓";
+    statusEl.textContent = "DB cleared";
   } catch (err) {
     console.error(err);
     statusEl.textContent = "Error clearing DB. See console.";
