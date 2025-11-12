@@ -11,21 +11,35 @@
   <h1>Jira Bulk Import CSV Generator</h1>
 
   <div class="toolbar">
-    <button class="btn" id="addRowBtn">➕ Add row</button>
-    <button class="btn" id="saveBtn">💾 Save CSV</button>
-    <button class="btn" id="saveDbBtn">🗃️ Save to DB</button>
-    <button class="btn" id="loadDbBtn">📤 Load from DB</button>
-    <button class="btn" id="clearDbBtn">🗑️ Clear DB</button>
-    <button class="btn" id="clearBtn">🧹 Clear All</button>
+    <!-- Left side -->
+    <div class="left-tools">
+      <button class="btn" id="addRowBtn">➕ Add row</button>
+      <button class="btn" id="saveBtn">💾 Save CSV</button>
+      <button class="btn" id="saveDbBtn">🗃️ Save to DB</button>
+      <button class="btn" id="loadDbBtn">📤 Load from DB</button>
+      <button class="btn" id="clearDbBtn">🗑️ Clear DB</button>
+      <button class="btn" id="clearBtn">🧹 Clear All</button>
 
-    <button style="background-color: #0052cc; color: #fff; font-weight: bold;" class="btn"
-      onclick="window.open('https://rnd-hub.atlassian.net/secure/BulkCreateSetupPage!default.jspa?externalSystem=com.atlassian.jira.plugins.jim-plugin%3AbulkCreateCsv', '_blank')">
-      <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/jira.svg"
-        alt="Jira"
-        style="width: 18px; height: 18px; vertical-align: middle; margin-right: 6px; filter: invert(1);">
-      Go to Jira
-    </button>
+      <button style="background-color: #0052cc; color: #fff; font-weight: bold;" class="btn"
+        onclick="window.open('https://rnd-hub.atlassian.net/secure/BulkCreateSetupPage!default.jspa?externalSystem=com.atlassian.jira.plugins.jim-plugin%3AbulkCreateCsv', '_blank')">
+        <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/jira.svg"
+          alt="Jira"
+          style="width: 18px; height: 18px; vertical-align: middle; margin-right: 6px; filter: invert(1);">
+        Go to Jira
+      </button>
+    </div>
+
+    <!-- Right side -->
+    <div class="right-tools">
+      <label for="issueType" style="font-weight: 500; margin-right: 4px;">Select Issue Type:</label>
+      <select name="Issue type" class="btn" id="issueType" style="width: auto; min-width: 80px;">
+        <option value="Test">Test</option>
+        <option value="Bug">Bug</option>
+      </select>
+    </div>
   </div>
+
+
 
   <table id="dataTable" aria-label="cases">
     <thead>

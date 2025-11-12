@@ -2,11 +2,14 @@
 const API_BASE = `${location.protocol}//${location.hostname}:8000`;
 
 // ===== UI config =====
-const ISSUE_TYPES = ["Test", "Bug"];
 const ASSIGNEES = ["MURADN@rafael.co.il", "ROSF@rafael.co.il", "IDANBARD@rafael.co.il", "moranmos@rafael.co.il", "yotamma@rafael.co.il"];
 const TEST_TEMPLATE = `*Preconditions:*\n\n\n\n*Expected Results:*\n\n\n\n*Test Type:*\nManual + Auto`;
 const BUG_TEMPLATE  = `*Steps to Reproduce:*\n\n\n\n*Expected Results:*\n\n\n\n*Actual Results:*`;
 const LABELS = ["Backend", "Frontend", "AUTO_TEST"];
+const linkMap = {
+  Test: "Link \"Relates\"",
+  Bug: "Link \"Problem/Incident\""
+};
 
 // ===== DOM =====
 const rowsEl    = document.getElementById("rows");
@@ -17,6 +20,7 @@ const loadDbBtn = document.getElementById("loadDbBtn");
 const clearDbBtn= document.getElementById("clearDbBtn");
 const clearBtn  = document.getElementById("clearBtn");
 const statusEl  = document.getElementById("status");
+const issueTypeValue = document.getElementById("issueType")
 
 // Modal elements
 const overlayEl  = document.getElementById("editorOverlay");
@@ -33,6 +37,31 @@ let activeIssueTypeSelect = null;
 let sourceEl = null;   // original field in the table
 
 // ===== Helpers =====
+
+function update_columns() {
+  let selected_value = issueTypeValue.value
+  const linkTitle = linkMap[selected_value];
+
+  const table = rowsEl.closest("table");
+  if (table) {
+    const ths = table.querySelectorAll("thead th");
+    if (ths[3]) ths[3].textContent = linkTitle;
+  }
+
+  for (const tr of rowsEl.querySelectorAll("tr")) {
+    const tds = tr.querySelectorAll("td");
+
+    const issueEl = tds[1]?.querySelector("input");
+    if (issueEl) issueEl.value = issueTypeValue.value;
+
+    const linkEl = tds[3]?.querySelector('input[type="text"]');
+    if (linkEl) {
+      linkEl.setAttribute("aria-label", linkTitle);
+      linkEl.title = linkTitle;
+    }
+  }
+}
+
 function makeCell(inner) {
   const td = document.createElement("td");
   td.appendChild(inner);
@@ -58,7 +87,7 @@ function gatherRows() {
   for (const tr of rowsEl.querySelectorAll("tr")) {
     const tds = tr.querySelectorAll("td");
     const summaryEl = tds[0].querySelector("input");
-    const issueEl   = tds[1].querySelector("select");
+    const issueEl   = tds[1].querySelector("input");
     const descEl    = tds[2].querySelector("textarea");
     const linkEl    = tds[3].querySelector("input");
     const assignEl  = tds[4].querySelector("select");
@@ -90,7 +119,6 @@ function createLabelsPicker(initialLabels = []) {
   const wrap = document.createElement("div");
   wrap.className = "labels-picker";
 
-  // hidden input holds the Jira-compatible value (space-separated)
   const hidden = document.createElement("input");
   hidden.type = "hidden";
   hidden.className = "labels-hidden";
@@ -208,8 +236,7 @@ function addRow(initial = {}) {
   summaryWrap.appendChild(summaryBtns);
 
   // Issue Type
-  const issueType = makeSelect(ISSUE_TYPES, "Select issue type");
-  if (initial.issue_type && ISSUE_TYPES.includes(initial.issue_type)) issueType.value = initial.issue_type;
+  const issueType = Object.assign(document.createElement("input"), { type: "text", value: issueTypeValue.value, readOnly: true});
 
   // Description
   const descWrapper = document.createElement("div");
@@ -288,7 +315,8 @@ async function saveCSV() {
   }
 
   try {
-    const res = await fetch(`${API_BASE}/save-csv`, {
+    let selected_value = issueTypeValue.value
+    const res = await fetch(`${API_BASE}/save-csv?issue_type=${selected_value}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rows }),
@@ -331,7 +359,8 @@ async function saveDB() {
   }
   statusEl.textContent = "Saving to DB…";
   try {
-    const res = await fetch(`${API_BASE}/save-db`, {
+    let selected_value = issueTypeValue.value
+    const res = await fetch(`${API_BASE}/save-db?issue_type=${selected_value}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rows })
@@ -347,7 +376,8 @@ async function saveDB() {
 
 async function loadFromDB() {
   try {
-    const res = await fetch(`${API_BASE}/cases`);
+    let selected_value = issueTypeValue.value
+    const res = await fetch(`${API_BASE}/cases?issue_type=${selected_value}`);
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     const json = await res.json();
     const rows = json.rows || [];
@@ -364,7 +394,8 @@ async function clearDB() {
   if (!confirm("Delete ALL rows from the database?")) return;
   statusEl.textContent = "Clearing DB…";
   try {
-    const res = await fetch(`${API_BASE}/cases`, { method: "DELETE" });
+    let selected_value = issueTypeValue.value
+    const res = await fetch(`${API_BASE}/cases?issue_type=${selected_value}`, { method: "DELETE" });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     await res.json();
     statusEl.textContent = "DB cleared";
@@ -383,7 +414,10 @@ function clearAll() {
 }
 
 // ===== Wire up and start =====
-
+issueTypeValue.addEventListener("click", () => {
+  update_columns();
+  loadFromDB();
+});
 addRowBtn.addEventListener("click", () => addRow());
 saveBtn.addEventListener("click", saveCSV);
 saveDbBtn.addEventListener("click", saveDB);

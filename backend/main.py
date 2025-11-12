@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Body
+from fastapi import FastAPI, HTTPException, Body, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -19,7 +19,13 @@ app.add_middleware(
 )
 
 # ---------- CSV (UPDATED: added Labels column) ----------
-CSV_HEADERS = ['Summary', 'Issue Type', 'Description', 'Link "Relates"', 'Assignee', 'Labels', 'NSOC_Team']
+TEST_HEADERS = ['Summary', 'Issue Type', 'Description', 'Link "Relates"', 'Assignee', 'Labels', 'NSOC_Team']
+BUG_HEADERS = ['Summary', 'Issue Type', 'Description', 'Link "Problem/Incident"', 'Assignee', 'Labels', 'NSOC_Team']
+Headers = {
+    "Test": TEST_HEADERS,
+    "Bug": BUG_HEADERS
+}
+
 
 class Row(BaseModel):
     summary: str = ""
@@ -34,7 +40,7 @@ class Payload(BaseModel):
     rows: List[Row]
 
 @app.post("/save-csv")
-def save_csv(payload: Payload):
+def save_csv(payload: Payload, issue_type: str = Query(...)):
     rows = [
         r for r in payload.rows
         if any([r.summary, r.issue_type, r.description, r.link_relates, r.assignee, r.labels, r.nsoc_team])
@@ -43,11 +49,11 @@ def save_csv(payload: Payload):
         raise HTTPException(status_code=400, detail="No non-empty rows to save.")
 
     ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    filename = f"cases-{ts}.csv"
+    filename = f"{issue_type}-ticket-{ts}.csv"
     path = os.path.join(os.getcwd(), filename)
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(CSV_HEADERS)
+        writer.writerow(Headers[issue_type])
         for r in rows:
             writer.writerow([r.summary, r.issue_type, r.description, r.link_relates, r.assignee, r.labels, r.nsoc_team])
     return {"ok": True, "filename": filename}
@@ -87,13 +93,14 @@ def _mongo_indexes():
 
 # ---------- DB endpoints (Mongo) ----------
 @app.post("/save-db")
-def save_db(payload: Dict[str, Any] = Body(...)):
+def save_db(payload: Dict[str, Any] = Body(...), issue_type: str = Query(...)):
     rows = payload.get("rows") if isinstance(payload, dict) else None
     if not isinstance(rows, list) or not rows:
         raise HTTPException(status_code=400, detail='"rows" must be a non-empty array')
 
     # Remove all existing documents first
-    col.delete_many({})
+    
+    col.delete_many({"issue_type": issue_type})
 
     docs: List[Dict[str, str]] = []
     for r in rows:
@@ -127,12 +134,12 @@ def save_db(payload: Dict[str, Any] = Body(...)):
 
 
 @app.get("/cases")
-def list_cases():
+def list_cases(issue_type: str = Query(...)):
     # newest first
-    items = list(col.find({}, {"_id": 0}).sort([("created_at", DESCENDING)]))
+    items = list(col.find({"issue_type": issue_type}, {"_id": 0}).sort([("created_at", DESCENDING)]))
     return {"rows": items}
 
 @app.delete("/cases")
-def clear_cases():
-    res = col.delete_many({})
+def clear_cases(issue_type: str = Query(...)):
+    res = col.delete_many({"issue_type": issue_type})
     return {"ok": True, "deleted": res.deleted_count}
