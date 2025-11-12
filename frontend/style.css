@@ -67,7 +67,16 @@ textarea {
   display: flex;
   gap: 8px;
   align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   margin-bottom: 12px;
+}
+
+.right-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-right: 2%;
   flex-wrap: wrap;
 }
 
