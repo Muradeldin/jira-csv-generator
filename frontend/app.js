@@ -14,6 +14,7 @@ const linkMap = {
 // ===== DOM =====
 const rowsEl    = document.getElementById("rows");
 const addRowBtn = document.getElementById("addRowBtn");
+const dupRowBtn = document.getElementById("dupRowBtn");
 const saveBtn   = document.getElementById("saveBtn");
 const saveDbBtn = document.getElementById("saveDbBtn");
 const loadDbBtn = document.getElementById("loadDbBtn");
@@ -148,6 +149,29 @@ function createLabelsPicker(initialLabels = []) {
 
   return wrap; // cell will contain this
 }
+
+function getRowDataFromTr(tr) {
+  const tds = tr.querySelectorAll("td");
+
+  const summaryEl = tds[0]?.querySelector("input");
+  const issueEl   = tds[1]?.querySelector("input");
+  const descEl    = tds[2]?.querySelector("textarea");
+  const linkEl    = tds[3]?.querySelector("input");
+  const assignEl  = tds[4]?.querySelector("select");
+  const labelEl   = tds[5]?.querySelector(".labels-hidden");
+  const nsocEl    = tds[6]?.querySelector("input"); 
+
+  return {
+    summary:     (summaryEl?.value || "").trim(),
+    issue_type:  (issueEl?.value || "").trim(),
+    description: (descEl?.value || "").trim(),
+    link_relates:(linkEl?.value || "").trim(),
+    assignee:    (assignEl?.value || "").trim(),
+    labels:      (labelEl?.value || "").trim(),
+    nsoc_team:   (nsocEl?.value || "").trim()
+  };
+}
+
 
 // ===== Modal controls =====
 function openModal(kind, fromEl, issueTypeSelect) {
@@ -301,9 +325,24 @@ function addRow(initial = {}) {
   actions.appendChild(delBtn);
   tr.appendChild(makeCell(actions));
 
-  rowsEl.appendChild(tr);
+  if (initial.insertAfter && initial.insertAfter.parentNode === rowsEl) {
+    rowsEl.insertBefore(tr, initial.insertAfter.nextSibling);
+  } else {
+    rowsEl.appendChild(tr);
+  }
+
   return tr;
 }
+
+function duplicateRow(tr) {
+  const data = getRowDataFromTr(tr);
+
+  data.insertAfter = tr;
+
+  addRow(data);
+}
+
+
 
 // ===== CSV API =====
 async function saveCSV() {
@@ -419,6 +458,10 @@ issueTypeValue.addEventListener("click", () => {
   loadFromDB();
 });
 addRowBtn.addEventListener("click", () => addRow());
+dupRowBtn.addEventListener("click", () => {
+  const lastRow = rowsEl.querySelector("tr:last-child");
+  if (lastRow) duplicateRow(lastRow);
+});
 saveBtn.addEventListener("click", saveCSV);
 saveDbBtn.addEventListener("click", saveDB);
 loadDbBtn.addEventListener("click", loadFromDB);
