@@ -19,8 +19,8 @@ app.add_middleware(
 )
 
 # ---------- CSV (UPDATED: added Labels column) ----------
-TEST_HEADERS = ['Summary', 'Issue Type', 'Description', 'Link "Relates"', 'Assignee', 'Labels', 'NSOC_Team']
-BUG_HEADERS = ['Summary', 'Issue Type', 'Description', 'Link "Problem/Incident"', 'Assignee', 'Labels', 'NSOC_Team']
+TEST_HEADERS = ['Summary', 'Issue Type', 'Description', 'Link "Relates"', 'Assignee', 'Labels', 'NSOC_Team', 'Severity']
+BUG_HEADERS = ['Summary', 'Issue Type', 'Description', 'Link "Problem/Incident"', 'Assignee', 'Labels', 'NSOC_Team', 'Severity']
 Headers = {
     "Test": TEST_HEADERS,
     "Bug": BUG_HEADERS
@@ -35,6 +35,7 @@ class Row(BaseModel):
     assignee: str = ""
     labels: str = ""       
     nsoc_team: str = ""
+    severity: str = ""
 
 class Payload(BaseModel):
     rows: List[Row]
@@ -43,7 +44,7 @@ class Payload(BaseModel):
 def save_csv(payload: Payload, issue_type: str = Query(...)):
     rows = [
         r for r in payload.rows
-        if any([r.summary, r.issue_type, r.description, r.link_relates, r.assignee, r.labels, r.nsoc_team])
+        if any([r.summary, r.issue_type, r.description, r.link_relates, r.assignee, r.labels, r.nsoc_team, r.severity])
     ]
     if not rows:
         raise HTTPException(status_code=400, detail="No non-empty rows to save.")
@@ -55,7 +56,7 @@ def save_csv(payload: Payload, issue_type: str = Query(...)):
         writer = csv.writer(f)
         writer.writerow(Headers[issue_type])
         for r in rows:
-            writer.writerow([r.summary, r.issue_type, r.description, r.link_relates, r.assignee, r.labels, r.nsoc_team])
+            writer.writerow([r.summary, r.issue_type, r.description, r.link_relates, r.assignee, r.labels, r.nsoc_team, r.severity])
     return {"ok": True, "filename": filename}
 
 @app.get("/download/{filename}")
@@ -113,7 +114,8 @@ def save_db(payload: Dict[str, Any] = Body(...), issue_type: str = Query(...)):
             r.get("link_relates"),
             r.get("assignee"),
             r.get("labels"),
-            r.get("nsoc_team")
+            r.get("nsoc_team"),
+            r.get("severity")
         ]):
             docs.append({
                 "summary": str(r.get("summary", "")).strip(),
@@ -123,6 +125,7 @@ def save_db(payload: Dict[str, Any] = Body(...), issue_type: str = Query(...)):
                 "assignee": str(r.get("assignee", "")).strip(),
                 "labels": str(r.get("labels", "")).strip(),
                 "nsoc_team": str(r.get("nsoc_team", "")).strip(),
+                "severity": str(r.get("severity", "")).strip(),
                 "created_at": datetime.datetime.utcnow(),
             })
 
