@@ -10,6 +10,13 @@ const linkMap = {
   Test: "Link \"Relates\"",
   Bug: "Link \"Problem/Incident\""
 };
+const SEVERITY = {
+  "1 - Critical or Safety": "1-Critical Or Safety",
+  "2 - Major - With Workaround": "2-Major- Mission fails or cannot be completed (No Workaround)",
+  "3 - Major - No Workaround": "3-Major-May interfere with mission(Workaround possible)",
+  "4 - Minor or Cosmetic": "4-Minor or Cosmetic",
+  "5 - Undefined": "5-Undefined"
+};
 
 // ===== DOM =====
 const rowsEl    = document.getElementById("rows");
@@ -60,6 +67,13 @@ function update_columns() {
       linkEl.setAttribute("aria-label", linkTitle);
       linkEl.title = linkTitle;
     }
+
+    const severityEl = tds[7]?.querySelector("select");
+    if (selected_value === "Test"){
+      severityEl.value = "";
+      severityEl.disabled = true; 
+    }
+    else { severityEl.disabled = false; }
   }
 }
 
@@ -68,20 +82,45 @@ function makeCell(inner) {
   td.appendChild(inner);
   return td;
 }
+
 function makeSelect(options, placeholder = "") {
+  let selected_value = issueTypeValue.value;
   const sel = document.createElement("select");
+
+  // Placeholder
   if (placeholder) {
     const opt = document.createElement("option");
-    opt.value = ""; opt.textContent = placeholder; opt.disabled = true; opt.selected = true;
+    opt.value = "";
+    opt.textContent = placeholder;
+    opt.disabled = true;
+    opt.selected = true;
     sel.appendChild(opt);
   }
-  for (const val of options) {
-    const opt = document.createElement("option");
-    opt.value = val; opt.textContent = val;
-    sel.appendChild(opt);
+
+  // Build options
+  if (Array.isArray(options)) {
+    // List → value = item, text = item
+    for (const val of options) {
+      const opt = document.createElement("option");
+      opt.value = val;
+      opt.textContent = val;
+      sel.appendChild(opt);
+    }
+
+  } else if (typeof options === "object" && options !== null) {
+    // Dict → value = options[key], text = key
+    for (const key of Object.keys(options)) {
+      const opt = document.createElement("option");
+      opt.value = options[key];
+      opt.textContent = key;
+      sel.appendChild(opt);
+    }
   }
+
   return sel;
 }
+
+
 
 function gatherRows() {
   const data = [];
@@ -94,6 +133,7 @@ function gatherRows() {
     const assignEl  = tds[4].querySelector("select");
     const labelEl   = tds[5].querySelector(".labels-hidden");
     const nsocEl    = tds[6].querySelector("input"); 
+    const severityEl = tds[7]?.querySelector("select");
 
     const row = {
       summary: (summaryEl?.value || "").trim(),
@@ -102,7 +142,8 @@ function gatherRows() {
       link_relates: (linkEl?.value || "").trim(),
       assignee: (assignEl?.value || "").trim(),
       labels: (labelEl?.value || "").trim(),
-      nsoc_team: (nsocEl?.value || "").trim()
+      nsoc_team: (nsocEl?.value || "").trim(),
+      severity:    (severityEl?.value || "").trim()
     };
     if (Object.values(row).some(v => v.length)) data.push(row);
   }
@@ -160,6 +201,7 @@ function getRowDataFromTr(tr) {
   const assignEl  = tds[4]?.querySelector("select");
   const labelEl   = tds[5]?.querySelector(".labels-hidden");
   const nsocEl    = tds[6]?.querySelector("input"); 
+  const severityEl = tds[7]?.querySelector("select");
 
   return {
     summary:     (summaryEl?.value || "").trim(),
@@ -168,7 +210,8 @@ function getRowDataFromTr(tr) {
     link_relates:(linkEl?.value || "").trim(),
     assignee:    (assignEl?.value || "").trim(),
     labels:      (labelEl?.value || "").trim(),
-    nsoc_team:   (nsocEl?.value || "").trim()
+    nsoc_team:   (nsocEl?.value || "").trim(),
+    severity:    (severityEl?.value || "").trim()
   };
 }
 
@@ -294,7 +337,7 @@ function addRow(initial = {}) {
   });
 
   // Assignee
-  const assignee = makeSelect(ASSIGNEES, "Select assignee");
+  const assignee = makeSelect(ASSIGNEES, "Select Assignee");
   if (initial.assignee && ASSIGNEES.includes(initial.assignee)) assignee.value = initial.assignee;
 
 // Labels (multi-select)
@@ -302,6 +345,16 @@ function addRow(initial = {}) {
 
   // NSOC_Team
   const nsoc = Object.assign(document.createElement("input"), { type: "text", value: initial.nsoc_team || "CYMNG" });
+
+  // Severity
+  const severity = makeSelect(SEVERITY, "Select Severity");
+  if (initial.severity) {
+  severity.value = initial.severity;   // this is enough
+  }
+  if (issueTypeValue.value === "Test") {
+  severity.disabled = true;
+  severity.value = ""; // clear any previous value
+}
 
   // Delete
   const delBtn = Object.assign(document.createElement("button"), {
@@ -319,6 +372,7 @@ function addRow(initial = {}) {
   tr.appendChild(makeCell(assignee));
   tr.appendChild(makeCell(labelsPicker));
   tr.appendChild(makeCell(nsoc));
+  tr.appendChild(makeCell(severity));
 
   const actions = document.createElement("div");
   actions.className = "actions";
