@@ -14,8 +14,7 @@ services:
 
   backend:
     build:
-      context: https://github.com/Muradeldin/jira-csv-generator.git#main:backend
-      dockerfile: Dockerfile
+      context: ./backend
     container_name: cases-backend
     environment:
       MONGO_HOST: mongo
@@ -33,8 +32,7 @@ services:
 
   frontend:
     build:
-      context: https://github.com/Muradeldin/jira-csv-generator.git#main:frontend
-      dockerfile: Dockerfile
+      context: ./frontend
     container_name: cases-frontend
     ports:
       - "8079:80"
