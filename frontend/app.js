@@ -266,7 +266,7 @@ function insertTemplate(targetTA, basedOn) {
   targetTA.focus();
 }
 
-overlayEl.addEventListener("click", (e) => {
+overlayEl.addEventListener("mousedown", (e) => {
   if (e.target === overlayEl) saveModal();
 });
 modalClose.addEventListener("click", closeModal);
@@ -507,6 +507,22 @@ function clearAll() {
 }
 
 // ===== Wire up and start =====
+let autoSaveTimer;
+const autoSaveDelay = 3000;
+
+document.addEventListener("input", () => {
+  clearTimeout(autoSaveTimer);
+
+  autoSaveTimer = setTimeout(() => {
+    saveDB();
+  }, autoSaveDelay);
+});
+document.addEventListener('keydown', function (event) {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+    event.preventDefault(); // Prevent the browser's default Save dialog
+    saveDB();
+  }
+});
 issueTypeValue.addEventListener("click", () => {
   update_columns();
   loadFromDB();
@@ -521,12 +537,6 @@ saveDbBtn.addEventListener("click", saveDB);
 loadDbBtn.addEventListener("click", loadFromDB);
 clearDbBtn.addEventListener("click", clearDB);
 clearBtn.addEventListener("click", clearAll);
-document.addEventListener('keydown', function (event) {
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
-    event.preventDefault(); // Prevent the browser's default Save dialog
-    saveDB();
-  }
-});
 
 // Start with one empty row
 addRow();
