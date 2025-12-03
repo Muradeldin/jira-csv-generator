@@ -5,7 +5,7 @@ const API_BASE = `${location.protocol}//${location.hostname}:8000`;
 const ASSIGNEES = ["MURADN@rafael.co.il", "ROSF@rafael.co.il", "IDANBARD@rafael.co.il", "ORIYADA@rafael.co.il", "moranmos@rafael.co.il", "yotamma@rafael.co.il"];
 const TEST_TEMPLATE = `*Preconditions:*\n\n\n\n*Expected Results:*\n\n\n\n*Test Type:*\nManual + Auto`;
 const BUG_TEMPLATE  = `*Steps to Reproduce:*\n\n\n\n*Expected Results:*\n\n\n\n*Actual Results:*`;
-const LABELS = ["BACKEND", "FRONTEND", "AUTO_TEST"];
+const LABELS = ["BACKEND", "FRONTEND", "AUTO_TEST", "CYMNG_PPC_FOC", "SA_PPC_FOC"];
 const linkMap = {
   Test: "Link \"Relates\"",
   Bug: "Link \"Problem/Incident\""
