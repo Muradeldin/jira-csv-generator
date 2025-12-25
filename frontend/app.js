@@ -12,8 +12,8 @@ const linkMap = {
 };
 const SEVERITY = {
   "1 - Critical or Safety": "1-Critical Or Safety",
-  "2 - Major - With Workaround": "2-Major- Mission fails or cannot be completed (No Workaround)",
-  "3 - Major - No Workaround": "3-Major-May interfere with mission(Workaround possible)",
+  "2 - Major - No Workaround": "2-Major- Mission fails or cannot be completed (No Workaround)",
+  "3 - Major - With Workaround": "3-Major-May interfere with mission(Workaround possible)",
   "4 - Minor or Cosmetic": "4-Minor or Cosmetic",
   "5 - Undefined": "5-Undefined"
 };
