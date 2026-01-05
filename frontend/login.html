@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Login to Jira</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>Connect Jira</h1>
+  <p id="msg">Checking Jira connection…</p>
+
+  <button class="btn" id="btnLogin" style="display:none;">
+    Login with Jira
+  </button>
+
+  <script>
+    const API_BASE = "http://localhost:8000";
+
+    async function run() {
+      const params = new URLSearchParams(location.search);
+      const err = params.get("error");
+      if (err) document.getElementById("msg").textContent = "Login error: " + err;
+
+      try {
+        const res = await fetch(`${API_BASE}/oauth/atlassian/status`);
+        const j = await res.json();
+
+        if (j.connected) {
+          document.getElementById("msg").textContent = "Connected ✅ Redirecting…";
+          location.href = "/";
+          return;
+        }
+
+        document.getElementById("msg").textContent = "Not connected.";
+        const btn = document.getElementById("btnLogin");
+        btn.style.display = "";
+        btn.onclick = () => location.href = `${API_BASE}/oauth/atlassian/start`;
+      } catch (e) {
+        document.getElementById("msg").textContent = "Could not check status.";
+        const btn = document.getElementById("btnLogin");
+        btn.style.display = "";
+        btn.onclick = () => location.href = `${API_BASE}/oauth/atlassian/start`;
+      }
+    }
+
+    run();
+  </script>
+</body>
+</html>

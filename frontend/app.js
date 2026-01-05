@@ -2,14 +2,25 @@
 const API_BASE = `${location.protocol}//${location.hostname}:8000`;
 
 // ===== UI config =====
-const ASSIGNEES = ["MURADN@rafael.co.il", "ROSF@rafael.co.il", "IDANBARD@rafael.co.il", "ORIYADA@rafael.co.il", "moranmos@rafael.co.il", "yotamma@rafael.co.il"];
+const ASSIGNEES = [
+  "MURADN@rafael.co.il",
+  "ROSF@rafael.co.il",
+  "IDANBARD@rafael.co.il",
+  "ORIYADA@rafael.co.il",
+  "moranmos@rafael.co.il",
+  "yotamma@rafael.co.il"
+];
+
 const TEST_TEMPLATE = `*Preconditions:*\n\n\n\n*Expected Results:*\n\n\n\n*Test Type:*\nManual + Auto`;
 const BUG_TEMPLATE  = `*Steps to Reproduce:*\n\n\n\n*Expected Results:*\n\n\n\n*Actual Results:*`;
+
 const LABELS = ["BACKEND", "FRONTEND", "AUTO_TEST", "CYMNG_PPC_FOC", "SA_PPC_FOC"];
+
 const linkMap = {
   Test: "Link \"Relates\"",
   Bug: "Link \"Problem/Incident\""
 };
+
 const SEVERITY = {
   "1 - Critical or Safety": "1-Critical Or Safety",
   "2 - Major - No Workaround": "2-Major- Mission fails or cannot be completed (No Workaround)",
@@ -28,7 +39,12 @@ const loadDbBtn = document.getElementById("loadDbBtn");
 const clearDbBtn= document.getElementById("clearDbBtn");
 const clearBtn  = document.getElementById("clearBtn");
 const statusEl  = document.getElementById("status");
-const issueTypeValue = document.getElementById("issueType")
+const issueTypeValue = document.getElementById("issueType");
+
+// NEW: Jira OAuth + Bulk Create buttons (must exist in index.html)
+const btnConnectJira = document.getElementById("btnConnectJira");
+const btnCreateJira  = document.getElementById("btnCreateJira");
+const jiraConnBadge  = document.getElementById("jiraConnBadge");
 
 // Modal elements
 const overlayEl  = document.getElementById("editorOverlay");
@@ -44,10 +60,42 @@ let activeKind = null; // 'description' | 'summary'
 let activeIssueTypeSelect = null;
 let sourceEl = null;   // original field in the table
 
-// ===== Helpers =====
+// ===== Assignee init (minimal) =====
+let assigneeAccountIdByEmail = {}; // email(lowercase) -> accountId
 
+async function initAssignees() {
+  try {
+    const st = await fetch(`${API_BASE}/oauth/atlassian/status`);
+    const sj = await st.json();
+    if (!sj.connected) return; // no Jira, keep emails
+
+    for (const email of ASSIGNEES) {
+      const res = await fetch(`${API_BASE}/jira/user-search?q=${encodeURIComponent(email)}`);
+      if (!res.ok) continue;
+
+      const users = await res.json();
+      if (!Array.isArray(users) || users.length === 0) continue;
+
+      const emailLower = email.toLowerCase();
+
+      // Prefer exact email match (if Jira returns emailAddress)
+      let found = users.find(u => (u.emailAddress || "").toLowerCase() === emailLower && u.accountId);
+
+      // Fallback: single result
+      if (!found && users.length === 1 && users[0]?.accountId) found = users[0];
+
+      if (found?.accountId) {
+        assigneeAccountIdByEmail[emailLower] = found.accountId;
+      }
+    }
+  } catch (e) {
+    console.warn("initAssignees failed:", e);
+  }
+}
+
+// ===== Helpers =====
 function update_columns() {
-  let selected_value = issueTypeValue.value
+  let selected_value = issueTypeValue.value;
   const linkTitle = linkMap[selected_value];
 
   const table = rowsEl.closest("table");
@@ -69,11 +117,14 @@ function update_columns() {
     }
 
     const severityEl = tds[7]?.querySelector("select");
-    if (selected_value === "Test"){
-      severityEl.value = "";
-      severityEl.disabled = true; 
+    if (severityEl) {
+      if (selected_value === "Test") {
+        severityEl.value = "";
+        severityEl.disabled = true;
+      } else {
+        severityEl.disabled = false;
+      }
     }
-    else { severityEl.disabled = false; }
   }
 }
 
@@ -84,10 +135,8 @@ function makeCell(inner) {
 }
 
 function makeSelect(options, placeholder = "") {
-  let selected_value = issueTypeValue.value;
   const sel = document.createElement("select");
 
-  // Placeholder
   if (placeholder) {
     const opt = document.createElement("option");
     opt.value = "";
@@ -97,18 +146,14 @@ function makeSelect(options, placeholder = "") {
     sel.appendChild(opt);
   }
 
-  // Build options
   if (Array.isArray(options)) {
-    // List → value = item, text = item
     for (const val of options) {
       const opt = document.createElement("option");
       opt.value = val;
       opt.textContent = val;
       sel.appendChild(opt);
     }
-
   } else if (typeof options === "object" && options !== null) {
-    // Dict → value = options[key], text = key
     for (const key of Object.keys(options)) {
       const opt = document.createElement("option");
       opt.value = options[key];
@@ -120,8 +165,6 @@ function makeSelect(options, placeholder = "") {
   return sel;
 }
 
-
-
 function gatherRows() {
   const data = [];
   for (const tr of rowsEl.querySelectorAll("tr")) {
@@ -132,7 +175,7 @@ function gatherRows() {
     const linkEl    = tds[3].querySelector("input");
     const assignEl  = tds[4].querySelector("select");
     const labelEl   = tds[5].querySelector(".labels-hidden");
-    const nsocEl    = tds[6].querySelector("input"); 
+    const nsocEl    = tds[6].querySelector("input");
     const severityEl = tds[7]?.querySelector("select");
 
     const row = {
@@ -140,10 +183,10 @@ function gatherRows() {
       issue_type: (issueEl?.value || "").trim(),
       description: (descEl?.value || "").trim(),
       link_relates: (linkEl?.value || "").trim(),
-      assignee: (assignEl?.value || "").trim(),
+      assignee: (assignEl?.value || "").trim(), // accountId if initAssignees found it, else email
       labels: (labelEl?.value || "").trim(),
       nsoc_team: (nsocEl?.value || "").trim(),
-      severity:    (severityEl?.value || "").trim()
+      severity: (severityEl?.value || "").trim()
     };
     if (Object.values(row).some(v => v.length)) data.push(row);
   }
@@ -188,7 +231,7 @@ function createLabelsPicker(initialLabels = []) {
   updateHidden();
   wrap.appendChild(hidden);
 
-  return wrap; // cell will contain this
+  return wrap;
 }
 
 function getRowDataFromTr(tr) {
@@ -200,7 +243,7 @@ function getRowDataFromTr(tr) {
   const linkEl    = tds[3]?.querySelector("input");
   const assignEl  = tds[4]?.querySelector("select");
   const labelEl   = tds[5]?.querySelector(".labels-hidden");
-  const nsocEl    = tds[6]?.querySelector("input"); 
+  const nsocEl    = tds[6]?.querySelector("input");
   const severityEl = tds[7]?.querySelector("select");
 
   return {
@@ -214,7 +257,6 @@ function getRowDataFromTr(tr) {
     severity:    (severityEl?.value || "").trim()
   };
 }
-
 
 // ===== Modal controls =====
 function openModal(kind, fromEl, issueTypeSelect) {
@@ -241,11 +283,13 @@ function openModal(kind, fromEl, issueTypeSelect) {
   document.body.classList.add("modal-open");
   overlayEl.classList.add("active");
 }
+
 function closeModal() {
   overlayEl.classList.remove("active");
   document.body.classList.remove("modal-open");
   activeKind = null; sourceEl = null; activeIssueTypeSelect = null;
 }
+
 function saveModal() {
   if (!sourceEl) return closeModal();
   if (activeKind === "summary") {
@@ -257,6 +301,7 @@ function saveModal() {
   sourceEl.focus();
   closeModal();
 }
+
 function insertTemplate(targetTA, basedOn) {
   if (!basedOn || !basedOn.value) { alert("Select Issue Type!"); return; }
   const template = basedOn.value === "Test" ? TEST_TEMPLATE
@@ -303,7 +348,7 @@ function addRow(initial = {}) {
   summaryWrap.appendChild(summaryBtns);
 
   // Issue Type
-  const issueType = Object.assign(document.createElement("input"), { type: "text", value: issueTypeValue.value, readOnly: true});
+  const issueType = Object.assign(document.createElement("input"), { type: "text", value: issueTypeValue.value, readOnly: true });
 
   // Description
   const descWrapper = document.createElement("div");
@@ -331,16 +376,33 @@ function addRow(initial = {}) {
   descWrapper.appendChild(desc);
   descWrapper.appendChild(rowButtons);
 
-  // Link "Relates"
+  // Link
   const linkRel = Object.assign(document.createElement("input"), {
     type: "text", placeholder: "NSOC-12345", value: initial.link_relates || ""
   });
 
-  // Assignee
-  const assignee = makeSelect(ASSIGNEES, "Select Assignee");
-  if (initial.assignee && ASSIGNEES.includes(initial.assignee)) assignee.value = initial.assignee;
+  // Assignee (value = accountId if initAssignees found it, else email)
+  const assignee = document.createElement("select");
+  {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "Select Assignee";
+    opt.disabled = true;
+    opt.selected = true;
+    assignee.appendChild(opt);
+  }
+  for (const email of ASSIGNEES) {
+    const opt = document.createElement("option");
+    const id = assigneeAccountIdByEmail[email.toLowerCase()];
+    opt.value = id || email;
+    opt.textContent = email;
+    assignee.appendChild(opt);
+  }
+  if (initial.assignee) {
+    assignee.value = initial.assignee; // supports both accountId or email
+  }
 
-// Labels (multi-select)
+  // Labels
   const labelsPicker = createLabelsPicker(parseLabels(initial.labels));
 
   // NSOC_Team
@@ -348,21 +410,17 @@ function addRow(initial = {}) {
 
   // Severity
   const severity = makeSelect(SEVERITY, "Select Severity");
-  if (initial.severity) {
-  severity.value = initial.severity;   // this is enough
-  }
+  if (initial.severity) severity.value = initial.severity;
   if (issueTypeValue.value === "Test") {
-  severity.disabled = true;
-  severity.value = ""; // clear any previous value
-}
+    severity.disabled = true;
+    severity.value = "";
+  }
 
   // Delete
   const delBtn = Object.assign(document.createElement("button"), {
     className: "btn", type: "button", innerText: "Delete"
   });
   delBtn.addEventListener("click", () => { tr.remove(); });
-
-  
 
   // Build row
   tr.appendChild(makeCell(summaryWrap));
@@ -390,13 +448,100 @@ function addRow(initial = {}) {
 
 function duplicateRow(tr) {
   const data = getRowDataFromTr(tr);
-
   data.insertAfter = tr;
-
   addRow(data);
 }
 
+// ===== Jira OAuth + Bulk Create =====
+async function jiraStatus() {
+  try {
+    const r = await fetch(`${API_BASE}/oauth/atlassian/status`);
+    const j = await r.json();
 
+    if (!jiraConnBadge) return;
+
+    if (!j.connected) {
+      jiraConnBadge.textContent = "Jira: not connected";
+      jiraConnBadge.style.color = "#bf2600";
+      return;
+    }
+
+    jiraConnBadge.textContent = `Jira: connected (${j.cloud_url || "site"})`;
+    jiraConnBadge.style.color = "#006644";
+  } catch (e) {
+    if (!jiraConnBadge) return;
+    jiraConnBadge.textContent = "Jira: status error";
+    jiraConnBadge.style.color = "#bf2600";
+  }
+}
+
+function connectJira() {
+  window.open(`${API_BASE}/oauth/atlassian/start`, "_blank");
+
+  const start = Date.now();
+  const timer = setInterval(async () => {
+    await jiraStatus();
+    if (jiraConnBadge && jiraConnBadge.textContent.startsWith("Jira: connected")) {
+      clearInterval(timer);
+    }
+    if (Date.now() - start > 60000) clearInterval(timer);
+  }, 1500);
+}
+
+async function createInJira() {
+  const selectedIssueType = issueTypeValue.value;
+  statusEl.textContent = "Creating issues in Jira…";
+
+  const rows = gatherRows();
+  const nonEmpty = rows.filter(r =>
+    (r.summary || r.issue_type || r.description || r.link_relates || r.assignee || r.labels || r.nsoc_team || r.severity)
+  );
+
+  if (nonEmpty.length === 0) {
+    statusEl.textContent = "Nothing to create.";
+    return;
+  }
+
+  if (nonEmpty.length > 50) {
+    statusEl.textContent = "Too many rows. Jira bulk create supports max 50 at once.";
+    return;
+  }
+
+  const st = await fetch(`${API_BASE}/oauth/atlassian/status`);
+  const sj = await st.json();
+  if (!sj.connected) {
+    statusEl.textContent = "Not connected to Jira. Click 'Connect Jira' first.";
+    return;
+  }
+
+  try {
+    // If you want linking too, add: &create_links=true
+    const res = await fetch(`${API_BASE}/jira/bulk-create?issue_type=${encodeURIComponent(selectedIssueType)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rows: nonEmpty }),
+    });
+
+    const text = await res.text();
+    if (!res.ok) {
+      statusEl.textContent = `Jira error (${res.status}): ${text}`;
+      return;
+    }
+
+    const json = JSON.parse(text);
+
+    // If backend returns {bulk_create:{issues:...}} use that; if it returns {issues:...} handle that too
+    const bulk = json.bulk_create || json;
+    const created = Array.isArray(bulk.issues) ? bulk.issues.length : null;
+
+    statusEl.textContent = created !== null
+      ? `✅ Done. Created ${created} Jira issues.`
+      : "✅ Done. Issues created.";
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = "Error creating issues in Jira. See console.";
+  }
+}
 
 // ===== CSV API =====
 async function saveCSV() {
@@ -408,7 +553,7 @@ async function saveCSV() {
   }
 
   try {
-    let selected_value = issueTypeValue.value
+    let selected_value = issueTypeValue.value;
     const res = await fetch(`${API_BASE}/save-csv?issue_type=${selected_value}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -427,7 +572,6 @@ async function saveCSV() {
         innerText: "⬇️ Download CSV",
       });
 
-      // Make button actually download
       downloadBtn.addEventListener("click", () => {
         window.open(`${API_BASE}/download/${encodeURIComponent(json.filename)}`, "_blank");
       });
@@ -442,7 +586,6 @@ async function saveCSV() {
   }
 }
 
-
 // ===== DB API =====
 async function saveDB() {
   const rows = gatherRows();
@@ -452,14 +595,14 @@ async function saveDB() {
   }
   statusEl.textContent = "Saving to DB…";
   try {
-    let selected_value = issueTypeValue.value
+    let selected_value = issueTypeValue.value;
     const res = await fetch(`${API_BASE}/save-db?issue_type=${selected_value}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rows })
     });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-    const json = await res.json();
+    await res.json();
     statusEl.textContent = `Saved to DB.`;
   } catch (err) {
     console.error(err);
@@ -469,7 +612,7 @@ async function saveDB() {
 
 async function loadFromDB() {
   try {
-    let selected_value = issueTypeValue.value
+    let selected_value = issueTypeValue.value;
     const res = await fetch(`${API_BASE}/cases?issue_type=${selected_value}`);
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     const json = await res.json();
@@ -487,7 +630,7 @@ async function clearDB() {
   if (!confirm("Delete ALL rows from the database?")) return;
   statusEl.textContent = "Clearing DB…";
   try {
-    let selected_value = issueTypeValue.value
+    let selected_value = issueTypeValue.value;
     const res = await fetch(`${API_BASE}/cases?issue_type=${selected_value}`, { method: "DELETE" });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     await res.json();
@@ -506,38 +649,55 @@ function clearAll() {
   addRow();
 }
 
-// ===== Wire up and start =====
+// ===== Wire up =====
 let autoSaveTimer;
 const autoSaveDelay = 3000;
 
 document.addEventListener("input", () => {
   clearTimeout(autoSaveTimer);
-
-  autoSaveTimer = setTimeout(() => {
-    saveDB();
-  }, autoSaveDelay);
+  autoSaveTimer = setTimeout(() => { saveDB(); }, autoSaveDelay);
 });
-document.addEventListener('keydown', function (event) {
+
+document.addEventListener("keydown", function (event) {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
-    event.preventDefault(); // Prevent the browser's default Save dialog
+    event.preventDefault();
     saveDB();
   }
 });
+
 issueTypeValue.addEventListener("click", () => {
   update_columns();
   loadFromDB();
 });
+
 addRowBtn.addEventListener("click", () => addRow());
 dupRowBtn.addEventListener("click", () => {
   const lastRow = rowsEl.querySelector("tr:last-child");
   if (lastRow) duplicateRow(lastRow);
 });
+
 saveBtn.addEventListener("click", saveCSV);
 saveDbBtn.addEventListener("click", saveDB);
 loadDbBtn.addEventListener("click", loadFromDB);
 clearDbBtn.addEventListener("click", clearDB);
 clearBtn.addEventListener("click", clearAll);
 
-// Start with one empty row
-addRow();
-loadFromDB()
+// NEW: Jira buttons (if present)
+if (btnConnectJira) btnConnectJira.addEventListener("click", connectJira);
+if (btnCreateJira) btnCreateJira.addEventListener("click", createInJira);
+
+// ===== Start =====
+
+(async () => {
+  const st = await fetch(`${API_BASE}/oauth/atlassian/status`).then(r => r.json()).catch(() => ({connected:false}));
+  if (!st.connected) {
+    location.href = "/login.html";
+    return;
+  }
+  await jiraStatus();
+  await initAssignees();  // resolves emails -> accountIds (best effort)
+  addRow();
+  await loadFromDB();
+  update_columns();
+  setInterval(jiraStatus, 5000);
+})();
