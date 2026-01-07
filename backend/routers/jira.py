@@ -149,12 +149,20 @@ def oauth_status():
     doc = _get_oauth_doc()
     if not doc:
         return {"connected": False}
+
     now = int(time.time())
+    expires_in = int(doc.get("expires_at", 0)) - now
+    has_refresh = bool(doc.get("refresh_token"))
+
+    # If token expired and can't refresh -> not connected
+    if expires_in <= 0 and not has_refresh:
+        return {"connected": False}
+
     return {
         "connected": True,
         "cloud_url": doc.get("cloud_url"),
-        "has_refresh_token": bool(doc.get("refresh_token")),
-        "expires_in_seconds": max(0, int(doc.get("expires_at", 0)) - now),
+        "has_refresh_token": has_refresh,
+        "expires_in_seconds": max(0, expires_in),
     }
 
 # ---- Jira helper endpoints
