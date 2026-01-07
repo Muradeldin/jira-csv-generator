@@ -226,9 +226,9 @@ body.modal-open {
 }
 
 .label-pill[aria-pressed="true"] {
-  background: #0052cc;
+  background: #0747A6;
   color: #fff;
-  border-color: #0052cc;
+  border-color: #0747A6;
 }
 
 .top-toolbar {
