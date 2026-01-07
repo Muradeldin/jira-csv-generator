@@ -4,15 +4,29 @@
   <meta charset="utf-8" />
   <title>Login to Jira</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="login-style.css">
 </head>
 <body>
-  <h1>Connect Jira</h1>
-  <p id="msg">Checking Jira connection…</p>
+  <div class="login-wrapper">
+    <div class="login-card">
+      <h1>Connect Jira</h1>
+      <p id="msg">Checking Jira connection…</p>
 
-  <button class="btn" id="btnLogin" style="display:none;">
-    Login with Jira
-  </button>
+      <button
+        class="btn"
+        id="btnLogin"
+        style="background-color: #0747A6; color: #fff; font-weight: bold;"
+        onclick="window.open('https://rnd-hub.atlassian.net/secure/BulkCreateSetupPage!default.jspa?externalSystem=com.atlassian.jira.plugins.jim-plugin%3AbulkCreateCsv', '_blank')"
+      >
+        <img
+          src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/jira.svg"
+          alt="Jira"
+          style="width: 18px; height: 18px; vertical-align: middle; margin-right: 6px; filter: invert(1);"
+        >
+        Login with Jira
+      </button>
+    </div>
+  </div>
 
   <script>
     const API_BASE = "http://localhost:8000";
@@ -28,11 +42,12 @@
 
         if (j.connected) {
           document.getElementById("msg").textContent = "Connected ✅ Redirecting…";
-          location.href = "/";
+          sleep(1000).then(() =>
+          location.href = "/");
           return;
         }
 
-        document.getElementById("msg").textContent = "Not connected.";
+        document.getElementById("msg").textContent = "";
         const btn = document.getElementById("btnLogin");
         btn.style.display = "";
         btn.onclick = () => location.href = `${API_BASE}/oauth/atlassian/start`;
