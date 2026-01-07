@@ -231,3 +231,32 @@ body.modal-open {
   border-color: #0052cc;
 }
 
+.top-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: 30px;
+}
+
+.top-toolbar h1 {
+  margin: 0;         
+  line-height: 1;
+}
+
+#jiraConnBadge {
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+#btnConnectJira {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hidden {
+  display: none !important;
+}

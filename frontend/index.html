@@ -8,7 +8,21 @@
 </head>
 
 <body>
-  <h1>Jira Bulk Import CSV Generator</h1>
+  <div class="top-toolbar">
+    <h1>Jira Bulk Import CSV Generator</h1>
+
+    <div class="right-tools">
+      <button class="btn" id="btnConnectJira" style="background:#0747A6;color:#fff;font-weight:700;">
+        <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/jira.svg"
+            alt="Jira"
+            style="width:18px;height:18px;margin-right:6px;filter:invert(1);">
+        Connect Jira
+      </button>
+
+      <span id="jiraConnBadge">Jira: not connected</span>
+    </div>
+  </div>
+
 
   <div class="toolbar">
     <!-- Left side -->
@@ -22,25 +36,11 @@
       <button class="btn" id="clearBtn">🧹 Clear All</button>
 
       <!-- NEW: OAuth + Bulk Create -->
-      <button class="btn" id="btnConnectJira" style="background:#0747A6;color:#fff;font-weight:700;">
-        🔐 Connect Jira
-      </button>
 
       <button class="btn" id="btnCreateJira" style="background:#36B37E;color:#fff;font-weight:700;">
         🚀 Create in Jira
       </button>
 
-      <span id="jiraConnBadge" style="margin-left:10px;font-weight:600;">
-        Jira: not connected
-      </span>
-
-      <button style="background-color: #0747A6; color: #fff; font-weight: bold;" class="btn"
-        onclick="window.open('https://rnd-hub.atlassian.net/secure/BulkCreateSetupPage!default.jspa?externalSystem=com.atlassian.jira.plugins.jim-plugin%3AbulkCreateCsv', '_blank')">
-        <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/jira.svg"
-          alt="Jira"
-          style="width: 18px; height: 18px; vertical-align: middle; margin-right: 6px; filter: invert(1);">
-        Go to Jira
-      </button>
     </div>
 
     <!-- Right side -->

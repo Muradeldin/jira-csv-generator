@@ -458,20 +458,39 @@ async function jiraStatus() {
     const r = await fetch(`${API_BASE}/oauth/atlassian/status`);
     const j = await r.json();
 
-    if (!jiraConnBadge) return;
+    if (!jiraConnBadge || !btnConnectJira) return;
 
     if (!j.connected) {
-      jiraConnBadge.textContent = "Jira: not connected";
-      jiraConnBadge.style.color = "#bf2600";
+      //NOT CONNECTED
+      btnConnectJira.classList.remove("hidden");
+      jiraConnBadge.classList.add("hidden");
+
+      if (btnCreateJira) {
+        btnCreateJira.disabled = true;
+      }
+
       return;
     }
 
-    jiraConnBadge.textContent = `Jira: connected (${j.cloud_url || "site"})`;
+    // CONNECTED
+    btnConnectJira.classList.add("hidden");
+    jiraConnBadge.classList.remove("hidden");
+
+    jiraConnBadge.textContent = "Jira: connected";
     jiraConnBadge.style.color = "#006644";
+
+    if (btnCreateJira) {
+      btnCreateJira.disabled = false;
+    }
+
   } catch (e) {
-    if (!jiraConnBadge) return;
-    jiraConnBadge.textContent = "Jira: status error";
-    jiraConnBadge.style.color = "#bf2600";
+    // ⚠ ERROR STATE
+    btnConnectJira.classList.remove("hidden");
+    jiraConnBadge.classList.add("hidden");
+
+    if (btnCreateJira) {
+      btnCreateJira.disabled = true;
+    }
   }
 }
 
@@ -689,13 +708,13 @@ if (btnCreateJira) btnCreateJira.addEventListener("click", createInJira);
 // ===== Start =====
 
 (async () => {
-  const st = await fetch(`${API_BASE}/oauth/atlassian/status`).then(r => r.json()).catch(() => ({connected:false}));
-  if (!st.connected) {
-    location.href = "/login.html";
-    return;
-  }
+  // const st = await fetch(`${API_BASE}/oauth/atlassian/status`).then(r => r.json()).catch(() => ({connected:false}));
+  // if (!st.connected) {
+  //   location.href = "/login.html";
+  //   return;
+  // }
   await jiraStatus();
-  await initAssignees();  // resolves emails -> accountIds (best effort)
+  await initAssignees(); 
   addRow();
   await loadFromDB();
   update_columns();
