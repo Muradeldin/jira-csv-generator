@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from typing import Any, Dict, List, Optional
 import time, secrets, urllib.parse, requests
-
+import re
 from backend.models import Payload, Row
 from backend.db import oauth_col
 from backend.config import (
@@ -116,19 +116,122 @@ def _ensure_valid_access_token() -> Dict[str, str]:
 # ------------------------------------------------------------------------------------------------
 
 # ---- Bulk create helpers -----------------------------------------------------------------------
+
+_BOLD_RE = re.compile(r"\*(.+?)\*")  # minimal: *bold*
+
+def _adf_inline(text: str) -> List[Dict[str, Any]]:
+    """
+    Convert inline *bold* into ADF text nodes with strong marks.
+    Everything else stays plain text.
+    """
+    nodes: List[Dict[str, Any]] = []
+    if text is None:
+        return nodes
+
+    last = 0
+    for m in _BOLD_RE.finditer(text):
+        if m.start() > last:
+            nodes.append({"type": "text", "text": text[last:m.start()]})
+        nodes.append({"type": "text", "text": m.group(1), "marks": [{"type": "strong"}]})
+        last = m.end()
+
+    if last < len(text):
+        nodes.append({"type": "text", "text": text[last:]})
+
+    # If the whole line was empty, ADF paragraph can have empty content []
+    return [n for n in nodes if n.get("text") != ""]
+
+
 def adf_from_plain(text: str) -> Dict[str, Any]:
-    text = (text or "").strip()
-    if not text:
+    """
+    Supported syntax:
+      - Paragraphs: any normal line
+      - Blank lines: paragraph break
+      - Bullet list: lines starting with "- "
+      - Number list: lines starting with "# "   (your choice)
+      - Inline bold: *bold*
+    """
+    text = (text or "").rstrip("\n")
+    if not text.strip():
         return {"type": "doc", "version": 1, "content": []}
 
-    content = []
-    for line in text.splitlines():
-        line = line.rstrip()
-        if not line:
+    lines = text.splitlines()
+
+    content: List[Dict[str, Any]] = []
+
+    # Buffers for current list block
+    current_list_type: str | None = None   # "bullet" | "ordered"
+    list_items: List[str] = []
+
+    def flush_list():
+        nonlocal current_list_type, list_items
+        if not current_list_type or not list_items:
+            current_list_type = None
+            list_items = []
+            return
+
+        list_node_type = "bulletList" if current_list_type == "bullet" else "orderedList"
+
+        list_node = {
+            "type": list_node_type,
+            "content": [
+                {
+                    "type": "listItem",
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": _adf_inline(item) or []
+                        }
+                    ],
+                }
+                for item in list_items
+            ],
+        }
+        content.append(list_node)
+        current_list_type = None
+        list_items = []
+
+    def add_paragraph(line: str):
+        content.append({
+            "type": "paragraph",
+            "content": _adf_inline(line) or []
+        })
+
+    for raw in lines:
+        line = raw.rstrip()
+
+        # blank line -> end lists, add empty paragraph (keeps spacing)
+        if not line.strip():
+            flush_list()
             content.append({"type": "paragraph", "content": []})
-        else:
-            content.append({"type": "paragraph", "content": [{"type": "text", "text": line}]})
+            continue
+
+        # bullet list
+        if line.startswith("- "):
+            item = line[2:].strip()
+            if current_list_type not in (None, "bullet"):
+                flush_list()
+            current_list_type = "bullet"
+            list_items.append(item)
+            continue
+
+        # numeric list using "# "
+        if line.startswith("# "):
+            item = line[2:].strip()
+            if current_list_type not in (None, "ordered"):
+                flush_list()
+            current_list_type = "ordered"
+            list_items.append(item)
+            continue
+
+        # normal paragraph
+        flush_list()
+        add_paragraph(line)
+
+    flush_list()
+
     return {"type": "doc", "version": 1, "content": content}
+
 
 def _split_issue_keys(s: str) -> List[str]:
     if not s:
