@@ -28,7 +28,7 @@
   </div>
 
   <script>
-    const API_BASE = "http://localhost:8000";
+    const API_BASE = `${location.protocol}//${location.hostname}:8000`;
 
     async function run() {
       const params = new URLSearchParams(location.search);

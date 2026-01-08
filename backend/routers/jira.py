@@ -63,15 +63,24 @@ def _get_accessible_resources(access_token: str) -> List[Dict[str, Any]]:
     r.raise_for_status()
     return r.json()
 
+
 def _ensure_valid_access_token() -> Dict[str, str]:
     doc = _get_oauth_doc()
     if not doc:
-        raise HTTPException(status_code=401, detail="Not connected. Go to /oauth/atlassian/start")
+        raise HTTPException(status_code=401, detail="Not connected. Please connect to Jira first.")
+
+    cloud_id = doc.get("cloud_id")
+    cloud_url = doc.get("cloud_url")
+    if not cloud_id:
+        raise HTTPException(status_code=401, detail="Connected state is incomplete (missing cloud_id). Reconnect.")
 
     now = int(time.time())
-    if doc.get("access_token") and doc.get("expires_at", 0) > now + 60:
-        return {"access_token": doc["access_token"], "cloud_id": doc["cloud_id"], "cloud_url": doc["cloud_url"]}
 
+    # Token still valid
+    if doc.get("access_token") and doc.get("expires_at", 0) > now + 60:
+        return {"access_token": doc["access_token"], "cloud_id": cloud_id, "cloud_url": cloud_url}
+
+    # Need refresh
     refresh_token = doc.get("refresh_token")
     if not refresh_token:
         raise HTTPException(status_code=401, detail="Expired and no refresh_token stored. Reconnect.")
@@ -85,11 +94,14 @@ def _ensure_valid_access_token() -> Dict[str, str]:
         "access_token": access_token,
         "refresh_token": refresh_token_new,
         "expires_at": expires_at,
-        "cloud_id": doc["cloud_id"],
-        "cloud_url": doc["cloud_url"],
+        "cloud_id": cloud_id,
+        "cloud_url": cloud_url,
         "oauth_state": None,
     })
-    return {"access_token": access_token, "cloud_id": doc["cloud_id"], "cloud_url": doc["cloud_url"]}
+
+    return {"access_token": access_token, "cloud_id": cloud_id, "cloud_url": cloud_url}
+
+
 # ------------------------------------------------------------------------------------------------
 
 # ---- Bulk create helpers -----------------------------------------------------------------------
@@ -205,6 +217,9 @@ def oauth_status():
     doc = _get_oauth_doc()
     if not doc:
         return {"connected": False}
+    
+    if not doc.get("access_token") and not doc.get("refresh_token"):
+        return {"connected": False}
 
     now = int(time.time())
     expires_in = int(doc.get("expires_at", 0)) - now
@@ -223,21 +238,6 @@ def oauth_status():
 # ------------------------------------------------------------------------------------------------
 
 # ---- Jira helper endpoints ---------------------------------------------------------------------
-@router.get("/jira/link-types")
-def jira_link_types():
-    auth = _ensure_valid_access_token()
-    access_token = auth["access_token"]
-    cloud_id = auth["cloud_id"]
-
-    url = f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/issueLinkType"
-    r = requests.get(url, headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"}, timeout=30)
-    if r.status_code >= 400:
-        raise HTTPException(status_code=r.status_code, detail=r.text)
-
-    data = r.json()
-    values = data.get("issueLinkTypes", []) if isinstance(data, dict) else []
-    return [{"name": v.get("name"), "inward": v.get("inward"), "outward": v.get("outward")} for v in values]
-
 @router.get("/jira/user-search")
 def jira_user_search(q: str = Query(..., min_length=1)):
     auth = _ensure_valid_access_token()
@@ -299,7 +299,6 @@ def jira_bulk_create(
         labels_list = [x for x in (r.labels or "").split() if x]
 
         assignee_value = (r.assignee or "").strip()
-        assignee_account_id = ASSIGNEE_MAP.get(assignee_value)
 
         fields: Dict[str, Any] = {
             "project": {"key": JIRA_PROJECT_KEY},
@@ -309,8 +308,8 @@ def jira_bulk_create(
             "labels": labels_list,
         }
 
-        if assignee_account_id:
-            fields["assignee"] = {"accountId": assignee_account_id}
+        if assignee_value:
+            fields["assignee"] = {"accountId": assignee_value}
 
         if CF_NSOC_TEAM and (r.nsoc_team or "").strip():
             fields[CF_NSOC_TEAM] = (r.nsoc_team or "").strip()
@@ -337,16 +336,21 @@ def jira_bulk_create(
 
     bulk_json = resp.json()
 
-    link_results: List[Dict[str, Any]] = []
+    idx_to_key = _parse_bulk_index_map(bulk_json, len(issue_updates))
+    created = [
+        {"index": idx, "key": key}
+        for idx, key in sorted(idx_to_key.items(), key=lambda x: x[0])
+    ] 
+
     if create_links:
         link_type = JIRA_LINK_TYPE_TEST if issue_type == "Test" else JIRA_LINK_TYPE_BUG
-        idx_to_key = _parse_bulk_index_map(bulk_json, len(issue_updates))
-
+               
         for idx, row in enumerate(kept_rows):
             created_key = idx_to_key.get(idx)
             if not created_key:
                 continue
             for to_key in _split_issue_keys(row.link_relates):
-                link_results.append(_create_issue_link(cloud_id, access_token, link_type, created_key, to_key))
+                _create_issue_link(cloud_id, access_token, link_type, created_key, to_key)
 
-    return {"bulk_create": bulk_json, "links": link_results}
+    return {"created": created, "jira_base_url": auth.get("cloud_url")}
+

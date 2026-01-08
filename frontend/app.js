@@ -533,9 +533,12 @@ async function createInJira() {
     return;
   }
 
+  const create_links = nonEmpty.some(r => (r.link_relates || "").trim() !== "");
+  const url = `${API_BASE}/jira/bulk-create?issue_type=${encodeURIComponent(selectedIssueType)}&create_links=${create_links}`;
+
   try {
     // If you want linking too, add: &create_links=true
-    const res = await fetch(`${API_BASE}/jira/bulk-create?issue_type=${encodeURIComponent(selectedIssueType)}`, {
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rows: nonEmpty }),
@@ -548,14 +551,48 @@ async function createInJira() {
     }
 
     const json = JSON.parse(text);
+    const jiraBase = json.jira_base_url;
+    const created = Array.isArray(json.created) ? json.created : [];
 
-    // If backend returns {bulk_create:{issues:...}} use that; if it returns {issues:...} handle that too
-    const bulk = json.bulk_create || json;
-    const created = Array.isArray(bulk.issues) ? bulk.issues.length : null;
+    if (created.length === 0) {
+      statusEl.textContent = "✅ Done. No issues were created.";
+      return;
+    }
 
-    statusEl.textContent = created !== null
-      ? `✅ Done. Created ${created} Jira issues.`
-      : "✅ Done. Issues created.";
+    if (!jiraBase) {
+      statusEl.textContent = "✅ Created issues.";
+      return;
+    }
+
+    statusEl.innerHTML = "";
+
+    const header = document.createElement("div");
+    header.textContent = `✅ Created ${created.length} Jira issue(s):`;
+    statusEl.appendChild(header);
+
+    const ul = document.createElement("ul");
+
+    for (const item of created) {
+      const idx = item?.index;
+      const key = item?.key;
+      if (typeof idx !== "number" || !key) continue;
+
+      const summary = (nonEmpty[idx]?.summary || "").trim() || "(no summary)";
+
+      const li = document.createElement("li");
+      const a = document.createElement("a");
+      a.href = `${jiraBase}/browse/${encodeURIComponent(key)}`;
+      a.textContent = `${summary} — ${key}`;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+
+      li.appendChild(a);
+      ul.appendChild(li);
+    }
+
+    statusEl.appendChild(ul);
+
+
   } catch (err) {
     console.error(err);
     statusEl.textContent = "Error creating issues in Jira. See console.";
