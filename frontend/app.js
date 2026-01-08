@@ -39,6 +39,7 @@ const loadDbBtn = document.getElementById("loadDbBtn");
 const clearDbBtn= document.getElementById("clearDbBtn");
 const clearBtn  = document.getElementById("clearBtn");
 const statusEl  = document.getElementById("status");
+const jiraImportEl = document.getElementById("jira-import");
 const issueTypeValue = document.getElementById("issueType");
 
 // NEW: Jira OAuth + Bulk Create buttons (must exist in index.html)
@@ -576,6 +577,7 @@ async function createInJira() {
     }
 
     statusEl.innerHTML = "";
+    jiraImportEl.innerHTML = "";
 
     const header = document.createElement("div");
     header.textContent = `✅ Created ${created.length} Jira issue(s):`;
@@ -593,15 +595,29 @@ async function createInJira() {
       const li = document.createElement("li");
       const a = document.createElement("a");
       a.href = `${jiraBase}/browse/${encodeURIComponent(key)}`;
-      a.textContent = `${summary} — ${key}`;
+      a.textContent = `${key}: ${summary}`;
       a.target = "_blank";
       a.rel = "noopener noreferrer";
+      a.style.color = "#D1D5DB";       
+      a.style.fontWeight = "600";
+      a.style.textDecoration = "none";
+      a.style.transition = "text-shadow 120ms ease, color 120ms ease";
+
+      a.addEventListener("mouseenter", () => {
+        a.style.textShadow = "0 0 4px rgba(76,154,255,0.4)";
+        a.style.color = "#4C9AFF";
+      });
+      a.addEventListener("mouseleave", () => {
+        a.style.textShadow = "none";
+        a.style.color = "#D1D5DB";
+      });
+
 
       li.appendChild(a);
       ul.appendChild(li);
     }
 
-    statusEl.appendChild(ul);
+    jiraImportEl.appendChild(ul);
 
 
   } catch (err) {
@@ -713,6 +729,7 @@ function clearAll() {
   if (!confirm("Clear all rows and reset the form?")) return;
   rowsEl.innerHTML = "";
   statusEl.textContent = "";
+  jiraImportEl.innerHTML = "";
   addRow();
 }
 
@@ -754,7 +771,6 @@ if (btnConnectJira) btnConnectJira.addEventListener("click", connectJira);
 if (btnCreateJira) btnCreateJira.addEventListener("click", createInJira);
 
 // ===== Start =====
-
 (async () => {
   const st = await apiFetch(`${API_BASE}/oauth/atlassian/status`).then(r => r.json()).catch(() => ({connected:false}));
   if (!st.connected) {
@@ -767,4 +783,5 @@ if (btnCreateJira) btnCreateJira.addEventListener("click", createInJira);
   await loadFromDB();
   update_columns();
   setInterval(jiraStatus, 15000);
+  test_styles();
 })();

@@ -323,10 +323,10 @@ def jira_bulk_create(
             fields["assignee"] = {"accountId": assignee_value}
 
         if CF_NSOC_TEAM and (r.nsoc_team or "").strip():
-            fields[CF_NSOC_TEAM] = (r.nsoc_team or "").strip()
+            fields[CF_NSOC_TEAM] = {"value": (r.nsoc_team or "").strip()}
 
         if CF_SEVERITY and (r.severity or "").strip():
-            fields[CF_SEVERITY] = (r.severity or "").strip()
+            fields[CF_SEVERITY] = {"value": (r.severity or "").strip()}
 
         issue_updates.append({"fields": fields, "update": {}})
         kept_rows.append(r)
