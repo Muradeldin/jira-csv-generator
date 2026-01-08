@@ -29,6 +29,4 @@ CF_NSOC_TEAM = os.getenv("CF_NSOC_TEAM", "customfield_10337")
 CF_SEVERITY  = os.getenv("CF_SEVERITY",  "customfield_10300")
 
 JIRA_LINK_TYPE_TEST = os.getenv("JIRA_LINK_TYPE_TEST", "Relates")
-JIRA_LINK_TYPE_BUG  = os.getenv("JIRA_LINK_TYPE_BUG",  "Relates")
-
-ASSIGNEE_MAP = json.loads(os.getenv("ASSIGNEE_MAP_JSON", "{}"))
+JIRA_LINK_TYPE_BUG  = os.getenv("JIRA_LINK_TYPE_BUG",  "Problem/Incident")
