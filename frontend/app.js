@@ -708,11 +708,11 @@ if (btnCreateJira) btnCreateJira.addEventListener("click", createInJira);
 // ===== Start =====
 
 (async () => {
-  // const st = await fetch(`${API_BASE}/oauth/atlassian/status`).then(r => r.json()).catch(() => ({connected:false}));
-  // if (!st.connected) {
-  //   location.href = "/login.html";
-  //   return;
-  // }
+  const st = await fetch(`${API_BASE}/oauth/atlassian/status`).then(r => r.json()).catch(() => ({connected:false}));
+  if (!st.connected) {
+    location.href = "/login.html";
+    return;
+  }
   await jiraStatus();
   await initAssignees(); 
   addRow();

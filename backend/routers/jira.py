@@ -16,7 +16,7 @@ from ..config import (
 
 router = APIRouter(tags=["jira"])
 
-# ---- OAuth storage helpers
+# ---- OAuth storage helpers ----------------------------------------------------------------
 def _get_oauth_doc() -> Optional[Dict[str, Any]]:
     return oauth_col.find_one({"_id": "default"}, {"_id": 0})
 
@@ -90,8 +90,64 @@ def _ensure_valid_access_token() -> Dict[str, str]:
         "oauth_state": None,
     })
     return {"access_token": access_token, "cloud_id": doc["cloud_id"], "cloud_url": doc["cloud_url"]}
+# ------------------------------------------------------------------------------------------------
 
-# ---- OAuth routes
+# ---- Bulk create helpers -----------------------------------------------------------------------
+def adf_from_plain(text: str) -> Dict[str, Any]:
+    text = (text or "").strip()
+    if not text:
+        return {"type": "doc", "version": 1, "content": []}
+
+    content = []
+    for line in text.splitlines():
+        line = line.rstrip()
+        if not line:
+            content.append({"type": "paragraph", "content": []})
+        else:
+            content.append({"type": "paragraph", "content": [{"type": "text", "text": line}]})
+    return {"type": "doc", "version": 1, "content": content}
+
+def _split_issue_keys(s: str) -> List[str]:
+    if not s:
+        return []
+    return [t.strip() for t in s.replace(",", " ").split() if t.strip()]
+
+def _parse_bulk_index_map(resp_json: Dict[str, Any], n_updates: int) -> Dict[int, str]:
+    issues = resp_json.get("issues") or []
+    errors = resp_json.get("errors") or []
+    failed_nums = [e.get("failedElementNumber") for e in errors if isinstance(e, dict)]
+    failed_nums = [n for n in failed_nums if isinstance(n, int)]
+    one_based = any(n >= n_updates for n in failed_nums)
+    failed = set((n - 1) if one_based else n for n in failed_nums)
+
+    success_indices = [i for i in range(n_updates) if i not in failed]
+    mapping: Dict[int, str] = {}
+    for idx, issue in zip(success_indices, issues):
+        key = issue.get("key")
+        if key:
+            mapping[idx] = key
+    return mapping
+
+def _create_issue_link(cloud_id: str, access_token: str, link_type: str, from_key: str, to_key: str) -> Dict[str, Any]:
+    url = f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/issueLink"
+    body = {
+        "type": {"name": link_type},
+        "inwardIssue": {"key": from_key},
+        "outwardIssue": {"key": to_key},
+    }
+    r = requests.post(
+        url,
+        headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json", "Content-Type": "application/json"},
+        json=body,
+        timeout=30,
+    )
+    if r.status_code >= 400:
+        return {"ok": False, "status": r.status_code, "error": r.text, "from": from_key, "to": to_key, "type": link_type}
+    return {"ok": True, "status": r.status_code, "from": from_key, "to": to_key, "type": link_type}
+# ------------------------------------------------------------------------------------------------
+
+
+# ---- OAuth routes ------------------------------------------------------------------------------
 @router.get("/oauth/atlassian/start")
 def oauth_start():
     if not ATLASSIAN_CLIENT_ID or not ATLASSIAN_CLIENT_SECRET:
@@ -164,8 +220,9 @@ def oauth_status():
         "has_refresh_token": has_refresh,
         "expires_in_seconds": max(0, expires_in),
     }
+# ------------------------------------------------------------------------------------------------
 
-# ---- Jira helper endpoints
+# ---- Jira helper endpoints ---------------------------------------------------------------------
 @router.get("/jira/link-types")
 def jira_link_types():
     auth = _ensure_valid_access_token()
@@ -204,61 +261,9 @@ def jira_user_search(q: str = Query(..., min_length=1)):
         "emailAddress": u.get("emailAddress"),
         "active": u.get("active"),
     } for u in users]
+# ------------------------------------------------------------------------------------------------
 
-# ---- Bulk create helpers
-def adf_from_plain(text: str) -> Dict[str, Any]:
-    text = (text or "").strip()
-    if not text:
-        return {"type": "doc", "version": 1, "content": []}
-
-    content = []
-    for line in text.splitlines():
-        line = line.rstrip()
-        if not line:
-            content.append({"type": "paragraph", "content": []})
-        else:
-            content.append({"type": "paragraph", "content": [{"type": "text", "text": line}]})
-    return {"type": "doc", "version": 1, "content": content}
-
-def _split_issue_keys(s: str) -> List[str]:
-    if not s:
-        return []
-    return [t.strip() for t in s.replace(",", " ").split() if t.strip()]
-
-def _parse_bulk_index_map(resp_json: Dict[str, Any], n_updates: int) -> Dict[int, str]:
-    issues = resp_json.get("issues") or []
-    errors = resp_json.get("errors") or []
-    failed_nums = [e.get("failedElementNumber") for e in errors if isinstance(e, dict)]
-    failed_nums = [n for n in failed_nums if isinstance(n, int)]
-    one_based = any(n >= n_updates for n in failed_nums)
-    failed = set((n - 1) if one_based else n for n in failed_nums)
-
-    success_indices = [i for i in range(n_updates) if i not in failed]
-    mapping: Dict[int, str] = {}
-    for idx, issue in zip(success_indices, issues):
-        key = issue.get("key")
-        if key:
-            mapping[idx] = key
-    return mapping
-
-def _create_issue_link(cloud_id: str, access_token: str, link_type: str, from_key: str, to_key: str) -> Dict[str, Any]:
-    url = f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/issueLink"
-    body = {
-        "type": {"name": link_type},
-        "inwardIssue": {"key": from_key},
-        "outwardIssue": {"key": to_key},
-    }
-    r = requests.post(
-        url,
-        headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json", "Content-Type": "application/json"},
-        json=body,
-        timeout=30,
-    )
-    if r.status_code >= 400:
-        return {"ok": False, "status": r.status_code, "error": r.text, "from": from_key, "to": to_key, "type": link_type}
-    return {"ok": True, "status": r.status_code, "from": from_key, "to": to_key, "type": link_type}
-
-# ---- Bulk create route
+# ---- Bulk create route -------------------------------------------------------------------------
 @router.post("/jira/bulk-create")
 def jira_bulk_create(
     payload: Payload,
