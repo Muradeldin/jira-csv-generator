@@ -1,12 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .db import ensure_indexes
-from .routers import cases, jira
+from backend.db import ensure_indexes
+from backend.routers import cases, jira
 
 app = FastAPI(title="Cases → Jira Bulk Create")
 
-# CORS (open for dev)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

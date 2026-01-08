@@ -4,8 +4,8 @@ from typing import Any, Dict, List
 import csv, os, datetime
 from pymongo import DESCENDING
 
-from ..models import Payload
-from ..db import cases_col
+from backend.models import Payload
+from backend.db import cases_col
 
 router = APIRouter(tags=["cases"])
 

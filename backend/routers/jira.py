@@ -3,15 +3,14 @@ from fastapi.responses import RedirectResponse
 from typing import Any, Dict, List, Optional
 import time, secrets, urllib.parse, requests
 
-from ..models import Payload, Row
-from ..db import oauth_col
-from ..config import (
+from backend.models import Payload, Row
+from backend.db import oauth_col
+from backend.config import (
     FRONTEND_URL,
     ATLASSIAN_CLIENT_ID, ATLASSIAN_CLIENT_SECRET, ATLASSIAN_REDIRECT_URI,
     ATLASSIAN_SCOPES, JIRA_SITE_URL, JIRA_PROJECT_KEY,
     CF_NSOC_TEAM, CF_SEVERITY,
     JIRA_LINK_TYPE_TEST, JIRA_LINK_TYPE_BUG,
-    ASSIGNEE_MAP
 )
 
 router = APIRouter(tags=["jira"])
@@ -83,9 +82,21 @@ def _ensure_valid_access_token() -> Dict[str, str]:
     # Need refresh
     refresh_token = doc.get("refresh_token")
     if not refresh_token:
-        raise HTTPException(status_code=401, detail="Expired and no refresh_token stored. Reconnect.")
+        raise HTTPException(status_code=401, detail="Connection Expired. Reconnect.")
 
-    new_tokens = _refresh_access_token(refresh_token)
+    try:
+        new_tokens = _refresh_access_token(refresh_token)
+    except requests.HTTPError:
+        # refresh token is invalid/revoked -> force login again
+        _save_oauth_doc({
+            "access_token": None,
+            "refresh_token": None,
+            "expires_at": 0,
+            "oauth_state": None,
+            "cloud_id": doc.get("cloud_id"),
+            "cloud_url": doc.get("cloud_url"),
+        })
+        raise HTTPException(status_code=401, detail="Session expired. Please reconnect to Jira.")
     access_token = new_tokens["access_token"]
     refresh_token_new = new_tokens.get("refresh_token", refresh_token)
     expires_at = now + int(new_tokens.get("expires_in", 3600))

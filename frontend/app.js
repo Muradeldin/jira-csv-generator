@@ -453,9 +453,21 @@ function duplicateRow(tr) {
 }
 
 // ===== Jira OAuth + Bulk Create =====
+async function apiFetch(url, options = {}) {
+  const res = await fetch(url, options);
+
+  if (res.status === 401) {
+    // Session expired → go to login
+    window.location.href = "/login.html";
+    throw new Error("Unauthorized");
+  }
+
+  return res;
+}
+
 async function jiraStatus() {
   try {
-    const r = await fetch(`${API_BASE}/oauth/atlassian/status`);
+    const r = await apiFetch(`${API_BASE}/oauth/atlassian/status`);
     const j = await r.json();
 
     if (!jiraConnBadge || !btnConnectJira) return;
@@ -526,7 +538,7 @@ async function createInJira() {
     return;
   }
 
-  const st = await fetch(`${API_BASE}/oauth/atlassian/status`);
+  const st = await apiFetch(`${API_BASE}/oauth/atlassian/status`);
   const sj = await st.json();
   if (!sj.connected) {
     statusEl.textContent = "Not connected to Jira. Click 'Connect Jira' first.";
@@ -537,7 +549,7 @@ async function createInJira() {
   const url = `${API_BASE}/jira/bulk-create?issue_type=${encodeURIComponent(selectedIssueType)}&create_links=${create_links}`;
 
   try {
-    const res = await fetch(url, {
+    const res = await apiFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rows: nonEmpty }),
@@ -744,7 +756,7 @@ if (btnCreateJira) btnCreateJira.addEventListener("click", createInJira);
 // ===== Start =====
 
 (async () => {
-  const st = await fetch(`${API_BASE}/oauth/atlassian/status`).then(r => r.json()).catch(() => ({connected:false}));
+  const st = await apiFetch(`${API_BASE}/oauth/atlassian/status`).then(r => r.json()).catch(() => ({connected:false}));
   if (!st.connected) {
     location.href = "/login.html";
     return;
@@ -754,5 +766,5 @@ if (btnCreateJira) btnCreateJira.addEventListener("click", createInJira);
   addRow();
   await loadFromDB();
   update_columns();
-  setInterval(jiraStatus, 5000);
+  setInterval(jiraStatus, 15000);
 })();
