@@ -537,7 +537,6 @@ async function createInJira() {
   const url = `${API_BASE}/jira/bulk-create?issue_type=${encodeURIComponent(selectedIssueType)}&create_links=${create_links}`;
 
   try {
-    // If you want linking too, add: &create_links=true
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
