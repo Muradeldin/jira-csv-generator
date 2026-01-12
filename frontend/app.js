@@ -79,7 +79,7 @@ async function initAssignees() {
       const users = await res.json();
       if (!Array.isArray(users) || users.length === 0) continue;
 
-      const emailLower = email.toLowerCase();
+      const emailLower = fullEmail.toLowerCase();
 
       // Prefer exact email match (if Jira returns emailAddress)
       let found = users.find(u => (u.emailAddress || "").toLowerCase() === emailLower && u.accountId);
