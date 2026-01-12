@@ -86,7 +86,22 @@
       <div class="modal-body">
         <textarea id="modalTextarea" class="modal-textarea" placeholder="Write here..."></textarea>
         <input id="modalInput" class="modal-input" type="text" placeholder="Summary..." style="display:none;" />
+
+        <!-- Labels editor panel (hidden by default) -->
+        <div id="modalLabelsPanel" style="display:none; width:100%; flex-direction:column; gap:12px;">
+          <div id="modalLabelsList" class="labels-picker"></div>
+
+          <div style="display:flex; gap:8px;">
+            <input id="modalNewLabelInput" class="modal-input" type="text" placeholder="Add new label (e.g. BACKEND)" />
+            <button id="modalAddLabelBtn" class="btn" type="button">Add</button>
+          </div>
+
+          <div class="small" style="opacity:.85;">
+            Click pills to select/unselect. Save to apply to the row.
+          </div>
+        </div>
       </div>
+
       <div class="modal-footer">
         <span class="small" style="margin-right:auto;">Tip: Use " - " for Bullet list, " # " for Numeric list</span>
         <button class="btn" id="modalSaveBtn">Save</button>

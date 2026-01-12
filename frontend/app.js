@@ -97,6 +97,18 @@ async function initAssignees() {
 }
 
 // ===== Helpers =====
+let statusClearTimer = null;
+
+function clearStatusAfter(ms = 3000) {
+  if (statusClearTimer) {
+    clearTimeout(statusClearTimer);
+  }
+  statusClearTimer = setTimeout(() => {
+    statusEl.textContent = "";
+    statusClearTimer = null;
+  }, ms);
+}
+
 function update_columns() {
   let selected_value = issueTypeValue.value;
   const linkTitle = linkMap[selected_value];
@@ -689,6 +701,7 @@ async function saveDB() {
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     await res.json();
     statusEl.textContent = `Saved to DB.`;
+    clearStatusAfter(4000);
   } catch (err) {
     console.error(err);
     statusEl.textContent = "Error saving to DB. See console.";
@@ -720,6 +733,7 @@ async function clearDB() {
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     await res.json();
     statusEl.textContent = "DB cleared";
+    clearStatusAfter(4000);
   } catch (err) {
     console.error(err);
     statusEl.textContent = "Error clearing DB. See console.";
@@ -748,6 +762,14 @@ document.addEventListener("keydown", function (event) {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
     event.preventDefault();
     saveDB();
+  }
+});
+
+document.addEventListener("keydown", function (event) {
+  if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+    event.preventDefault();
+    const lastRow = rowsEl.querySelector("tr:last-child");
+    if (lastRow) duplicateRow(lastRow);
   }
 });
 
