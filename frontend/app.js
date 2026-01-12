@@ -3,12 +3,13 @@ const API_BASE = `${location.protocol}//${location.hostname}:8000`;
 
 // ===== UI config =====
 const ASSIGNEES = [
-  "MURADN@rafael.co.il",
-  "ROSF@rafael.co.il",
-  "IDANBARD@rafael.co.il",
-  "ORIYADA@rafael.co.il",
-  "moranmos@rafael.co.il",
-  "yotamma@rafael.co.il"
+  "muradn",
+  "rosf",
+  "idanbard",
+  "ilananc",
+  "oriyada",
+  "moranmos",
+  "yotamma"
 ];
 
 const TEST_TEMPLATE = `*Preconditions:*\n\n\n\n*Expected Results:*\n\n\n\n*Test Type:*\nManual + Auto`;
@@ -71,7 +72,8 @@ async function initAssignees() {
     if (!sj.connected) return; // no Jira, keep emails
 
     for (const email of ASSIGNEES) {
-      const res = await fetch(`${API_BASE}/jira/user-search?q=${encodeURIComponent(email)}`);
+      let fullEmail = email + "@rafael.co.il";
+      const res = await fetch(`${API_BASE}/jira/user-search?q=${encodeURIComponent(fullEmail)}`);
       if (!res.ok) continue;
 
       const users = await res.json();
