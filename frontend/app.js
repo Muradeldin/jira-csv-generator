@@ -88,7 +88,7 @@ async function initAssignees() {
       if (!found && users.length === 1 && users[0]?.accountId) found = users[0];
 
       if (found?.accountId) {
-        assigneeAccountIdByEmail[emailLower] = found.accountId;
+        assigneeAccountIdByEmail[email] = found.accountId;
       }
     }
   } catch (e) {
