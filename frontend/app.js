@@ -12,8 +12,8 @@ const ASSIGNEES = [
   "yotamma"
 ];
 
-const TEST_TEMPLATE = `*Preconditions:*\n\n\n\n*Expected Results:*\n\n\n\n*Test Type:*\nManual + Auto`;
-const BUG_TEMPLATE  = `*Steps to Reproduce:*\n\n\n\n*Expected Results:*\n\n\n\n*Actual Results:*`;
+const TEST_TEMPLATE = `*Preconditions:*\n\n\n*Expected Results:*\n\n\n*Test Type:*\nManual + Auto`;
+const BUG_TEMPLATE  = `*Steps to Reproduce:*\n\n\n*Expected Results:*\n\n\n*Actual Results:*`;
 
 const LABELS = ["BACKEND", "FRONTEND", "AUTO_TEST", "CYMNG_PPC_FOC", "SA_PPC_FOC"];
 
