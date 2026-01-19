@@ -64,6 +64,7 @@
         <th>Labels</th>
         <th>NSOC_Team</th>
         <th>Severity</th>
+        <th>Test Steps</th>
         <th>—</th>
       </tr>
     </thead>
@@ -93,6 +94,37 @@
       </div>
     </div>
   </div>
+
+  <div id="stepsOverlay" class="overlay" aria-modal="true" role="dialog">
+    <div class="modal" role="document" style="max-width: 900px;">
+      <div class="modal-header">
+        <div class="modal-title">Edit Test Steps</div>
+        <div style="display:flex; gap:8px;">
+          <button class="icon-btn" id="stepsAddBtn" title="Add Step">➕ Add</button>
+          <button class="icon-btn" id="stepsCloseBtn" title="Close">✕</button>
+        </div>
+      </div>
+
+      <div class="modal-body">
+        <table style="width:100%; border-collapse:collapse;">
+          <thead>
+            <tr>
+              <th style="width:42%;">Step</th>
+              <th style="width:22%;">Data</th>
+              <th style="width:28%;">Expected</th>
+              <th style="width:8%;">—</th>
+            </tr>
+          </thead>
+          <tbody id="stepsTbody"></tbody>
+        </table>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn" id="stepsSaveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+
 
   <script src="app.js" defer></script>
 </body>

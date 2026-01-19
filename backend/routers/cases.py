@@ -57,10 +57,32 @@ def save_db(payload: Dict[str, Any] = Body(...), issue_type: str = Query(...)):
     for r in rows:
         if not isinstance(r, dict):
             continue
+
+        steps = r.get("steps", [])
+        has_steps = isinstance(steps, list) and len(steps) > 0
+
         if any([
             r.get("summary"), r.get("issue_type"), r.get("description"), r.get("link_relates"),
-            r.get("assignee"), r.get("labels"), r.get("nsoc_team"), r.get("severity")
+            r.get("assignee"), r.get("labels"), r.get("nsoc_team"), r.get("severity", has_steps)
         ]):
+            issue_type_row = str(r.get("issue_type", "")).strip()
+
+            # Disable steps for Bugs (backend rule)
+            if issue_type_row == "Bug":
+                steps = []
+
+            norm_steps = []
+            if isinstance(steps, list):
+                for s in steps:
+                    if not isinstance(s, dict):
+                        continue
+                    norm_steps.append({
+                        "step": str(s.get("step", "")).strip(),
+                        "data": str(s.get("data", "")).strip(),
+                        "result": str(s.get("result", "")).strip(),
+                    })
+
+            
             docs.append({
                 "summary": str(r.get("summary", "")).strip(),
                 "issue_type": str(r.get("issue_type", "")).strip(),
@@ -70,6 +92,7 @@ def save_db(payload: Dict[str, Any] = Body(...), issue_type: str = Query(...)):
                 "labels": str(r.get("labels", "")).strip(),
                 "nsoc_team": str(r.get("nsoc_team", "")).strip(),
                 "severity": str(r.get("severity", "")).strip(),
+                "steps": norm_steps,
                 "created_at": datetime.datetime.utcnow(),
             })
 

@@ -57,6 +57,15 @@ const modalSave  = document.getElementById("modalSaveBtn");
 const modalClose = document.getElementById("modalCloseBtn");
 const modalInsertTemplateBtn = document.getElementById("modalInsertTemplateBtn");
 
+// Test Steps Modal elements
+const stepsOverlay = document.getElementById("stepsOverlay");
+const stepsTbody   = document.getElementById("stepsTbody");
+const stepsAddBtn  = document.getElementById("stepsAddBtn");
+const stepsSaveBtn = document.getElementById("stepsSaveBtn");
+const stepsCloseBtn= document.getElementById("stepsCloseBtn");
+let stepsTargetHidden = null;
+let stepsOnSavedCb = null;
+
 // ===== Modal state =====
 let activeKind = null; // 'description' | 'summary'
 let activeIssueTypeSelect = null;
@@ -97,6 +106,11 @@ async function initAssignees() {
 }
 
 // ===== Helpers =====
+function safeJsonParse(s, fallback) {
+  try { return JSON.parse(s); } catch { return fallback; }
+}
+
+
 let statusClearTimer = null;
 
 function clearStatusAfter(ms = 3000) {
@@ -140,6 +154,16 @@ function update_columns() {
         severityEl.disabled = false;
       }
     }
+
+    const stepsBtn = tds[8]?.querySelector("button.btn");
+    if (stepsBtn) {
+      const isBug = (selected_value === "Bug");
+      stepsBtn.disabled = isBug;
+      stepsBtn.title = isBug ? "Test Steps are disabled for Bugs" : "";
+      stepsBtn.style.opacity = isBug ? "0.5" : "1";
+      stepsBtn.style.pointerEvents = isBug ? "none" : "auto";
+    }
+
   }
 }
 
@@ -192,6 +216,8 @@ function gatherRows() {
     const labelEl   = tds[5].querySelector(".labels-hidden");
     const nsocEl    = tds[6].querySelector("input");
     const severityEl = tds[7]?.querySelector("select");
+    const stepsEl = tds[8]?.querySelector(".steps-hidden");
+
 
     const row = {
       summary: (summaryEl?.value || "").trim(),
@@ -201,7 +227,8 @@ function gatherRows() {
       assignee: (assignEl?.value || "").trim(), // accountId if initAssignees found it, else email
       labels: (labelEl?.value || "").trim(),
       nsoc_team: (nsocEl?.value || "").trim(),
-      severity: (severityEl?.value || "").trim()
+      severity: (severityEl?.value || "").trim(),
+      steps: safeJsonParse(stepsEl?.value || "[]", [])
     };
     if (Object.values(row).some(v => v.length)) data.push(row);
   }
@@ -260,6 +287,8 @@ function getRowDataFromTr(tr) {
   const labelEl   = tds[5]?.querySelector(".labels-hidden");
   const nsocEl    = tds[6]?.querySelector("input");
   const severityEl = tds[7]?.querySelector("select");
+  const stepsEl = tds[8]?.querySelector(".steps-hidden");
+
 
   return {
     summary:     (summaryEl?.value || "").trim(),
@@ -269,9 +298,80 @@ function getRowDataFromTr(tr) {
     assignee:    (assignEl?.value || "").trim(),
     labels:      (labelEl?.value || "").trim(),
     nsoc_team:   (nsocEl?.value || "").trim(),
-    severity:    (severityEl?.value || "").trim()
+    severity:    (severityEl?.value || "").trim(),
+    steps:       safeJsonParse(stepsEl?.value || "[]", [])
   };
 }
+
+// ===== Test Steps Modal controls =====
+function makeStepRow(step = { step: "", data: "", result: "" }) {
+  const tr = document.createElement("tr");
+
+  const stepTa = document.createElement("textarea");
+  stepTa.value = step.step || "";
+
+  const dataTa = document.createElement("textarea");
+  dataTa.value = step.data || "";
+
+  const resTa = document.createElement("textarea");
+  resTa.value = step.result || "";
+
+  const del = document.createElement("button");
+  del.type = "button";
+  del.className = "btn";
+  del.textContent = "Delete";
+  del.addEventListener("click", () => tr.remove());
+
+  tr.appendChild(makeCell(stepTa));
+  tr.appendChild(makeCell(dataTa));
+  tr.appendChild(makeCell(resTa));
+  tr.appendChild(makeCell(del));
+  return tr;
+}
+
+function openStepsModal(hiddenInputEl, onSavedCb) {
+  stepsTargetHidden = hiddenInputEl;
+  stepsOnSavedCb = onSavedCb;
+
+  stepsTbody.innerHTML = "";
+  const stepsArr = safeJsonParse(hiddenInputEl.value || "[]", []);
+  stepsArr.forEach(s => stepsTbody.appendChild(makeStepRow(s)));
+
+  document.body.classList.add("modal-open");
+  stepsOverlay.classList.add("active");
+}
+
+function closeStepsModal() {
+  stepsOverlay.classList.remove("active");
+  document.body.classList.remove("modal-open");
+  stepsTargetHidden = null;
+  stepsOnSavedCb = null;
+}
+
+stepsAddBtn.addEventListener("click", () => {
+  stepsTbody.appendChild(makeStepRow());
+});
+
+stepsCloseBtn.addEventListener("click", closeStepsModal);
+
+stepsSaveBtn.addEventListener("click", () => {
+  if (!stepsTargetHidden) return closeStepsModal();
+
+  const steps = [];
+  for (const tr of stepsTbody.querySelectorAll("tr")) {
+    const tds = tr.querySelectorAll("td");
+    const step = (tds[0].querySelector("textarea")?.value || "").trim();
+    const data = (tds[1].querySelector("textarea")?.value || "").trim();
+    const result = (tds[2].querySelector("textarea")?.value || "").trim();
+
+    // ignore fully empty lines
+    if (step || data || result) steps.push({ step, data, result });
+  }
+
+  stepsTargetHidden.value = JSON.stringify(steps);
+  if (typeof stepsOnSavedCb === "function") stepsOnSavedCb();
+  closeStepsModal();
+});
 
 // ===== Modal controls =====
 function openModal(kind, fromEl, issueTypeSelect) {
@@ -431,6 +531,48 @@ function addRow(initial = {}) {
     severity.value = "";
   }
 
+  //Test Steps
+  const stepsWrap = document.createElement("div");
+  stepsWrap.style.display = "flex";
+  stepsWrap.style.flexDirection = "column";
+  stepsWrap.style.gap = "6px";
+
+  const stepsHidden = document.createElement("input");
+  stepsHidden.type = "hidden";
+  stepsHidden.className = "steps-hidden";
+
+  // initial.steps can be array, or initial.steps_json can be string
+  const initialSteps = Array.isArray(initial.steps)
+    ? initial.steps
+    : safeJsonParse(initial.steps_json || "[]", []);
+  stepsHidden.value = JSON.stringify(initialSteps);
+
+  const stepsBtn = document.createElement("button");
+  stepsBtn.type = "button";
+  stepsBtn.className = "btn";
+  
+  function applyStepsAvailability() {
+  const isBug = (issueTypeValue.value === "Bug");
+  stepsBtn.disabled = isBug;
+  stepsBtn.title = isBug ? "Test Steps are disabled for Bugs" : "";
+  stepsBtn.style.opacity = isBug ? "0.5" : "1";
+  stepsBtn.style.pointerEvents = isBug ? "none" : "auto"; // optional
+}
+
+applyStepsAvailability();
+
+
+  function updateStepsBtnLabel() {
+    const arr = safeJsonParse(stepsHidden.value || "[]", []);
+    stepsBtn.textContent = `Test Steps`;
+  }
+  updateStepsBtnLabel();
+
+  stepsBtn.addEventListener("click", () => openStepsModal(stepsHidden, updateStepsBtnLabel));
+  stepsWrap.appendChild(stepsBtn);
+  stepsWrap.appendChild(stepsHidden);
+
+
   // Delete
   const delBtn = Object.assign(document.createElement("button"), {
     className: "btn", type: "button", innerText: "Delete"
@@ -446,6 +588,7 @@ function addRow(initial = {}) {
   tr.appendChild(makeCell(labelsPicker));
   tr.appendChild(makeCell(nsoc));
   tr.appendChild(makeCell(severity));
+  tr.appendChild(makeCell(stepsWrap));
 
   const actions = document.createElement("div");
   actions.className = "actions";
