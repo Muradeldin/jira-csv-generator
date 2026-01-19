@@ -30,3 +30,10 @@ CF_SEVERITY  = os.getenv("CF_SEVERITY",  "customfield_10300")
 
 JIRA_LINK_TYPE_TEST = os.getenv("JIRA_LINK_TYPE_TEST", "Relates")
 JIRA_LINK_TYPE_BUG  = os.getenv("JIRA_LINK_TYPE_BUG",  "Problem/Incident")
+
+
+ZEPHYR_BASE_URL = os.getenv("ZEPHYR_BASE_URL", "https://prod-api.zephyr4jiracloud.com/connect").rstrip("/")
+ZEPHYR_ACCESS_KEY = os.getenv("ZEPHYR_ACCESS_KEY", "")
+ZEPHYR_SECRET_KEY = os.getenv("ZEPHYR_SECRET_KEY", "")
+ZEPHYR_ACCOUNT_ID = os.getenv("ZEPHYR_ACCOUNT_ID", "")
+ZEPHYR_PROJECT_ID = os.getenv("ZEPHYR_PROJECT_ID", "")  # numeric projectId

@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 import time, secrets, urllib.parse, requests
 import re
 from backend.models import Payload, Row
+from backend.zephyr_squad import add_test_steps
 from backend.db import oauth_col
 from backend.config import (
     FRONTEND_URL,
@@ -238,21 +239,25 @@ def _split_issue_keys(s: str) -> List[str]:
         return []
     return [t.strip() for t in s.replace(",", " ").split() if t.strip()]
 
-def _parse_bulk_index_map(resp_json: Dict[str, Any], n_updates: int) -> Dict[int, str]:
+def _parse_bulk_index_map(resp_json: Dict[str, Any], n_updates: int) -> Dict[int, Dict[str, str]]:
     issues = resp_json.get("issues") or []
     errors = resp_json.get("errors") or []
+
     failed_nums = [e.get("failedElementNumber") for e in errors if isinstance(e, dict)]
     failed_nums = [n for n in failed_nums if isinstance(n, int)]
     one_based = any(n >= n_updates for n in failed_nums)
     failed = set((n - 1) if one_based else n for n in failed_nums)
 
     success_indices = [i for i in range(n_updates) if i not in failed]
-    mapping: Dict[int, str] = {}
+
+    mapping: Dict[int, Dict[str, str]] = {}
     for idx, issue in zip(success_indices, issues):
         key = issue.get("key")
-        if key:
-            mapping[idx] = key
+        _id = issue.get("id")
+        if key and _id:
+            mapping[idx] = {"key": key, "id": _id}
     return mapping
+
 
 def _create_issue_link(cloud_id: str, access_token: str, link_type: str, from_key: str, to_key: str) -> Dict[str, Any]:
     url = f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/issueLink"
@@ -450,7 +455,7 @@ def jira_bulk_create(
 
     bulk_json = resp.json()
 
-    idx_to_key = _parse_bulk_index_map(bulk_json, len(issue_updates))
+    idx_to_key, idx_to_id = _parse_bulk_index_maps(bulk_json, len(issue_updates))
     created = [
         {"index": idx, "key": key}
         for idx, key in sorted(idx_to_key.items(), key=lambda x: x[0])
@@ -465,6 +470,32 @@ def jira_bulk_create(
                 continue
             for to_key in _split_issue_keys(row.link_relates):
                 _create_issue_link(cloud_id, access_token, link_type, created_key, to_key)
+    
+    zephyr_results = []
 
-    return {"created": created, "jira_base_url": auth.get("cloud_url")}
+    if issue_type == "Test":
+        for idx, row in enumerate(kept_rows):
+            created_id = idx_to_id.get(idx)   
+            created_key = idx_to_key.get(idx)  
+            if not created_id:
+                continue
+
+            steps = getattr(row, "steps", None) or []
+            if not steps:
+                continue
+
+            # call your zephyr helper here
+            res = add_test_steps(created_id, steps)
+
+            zephyr_results.append({
+                "index": idx,
+                "key": created_key,
+                "steps_added": sum(1 for r in res if r.get("ok")),
+                "errors": [r for r in res if not r.get("ok")],
+            })
+
+
+
+    return {"created": created, "jira_base_url": auth.get("cloud_url"), "zephyr": zephyr_results}
+
 
