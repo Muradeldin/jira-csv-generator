@@ -42,6 +42,8 @@ const clearBtn  = document.getElementById("clearBtn");
 const statusEl  = document.getElementById("status");
 const jiraImportEl = document.getElementById("jira-import");
 const issueTypeValue = document.getElementById("issueType");
+const uploadDbBtn = document.getElementById("uploadDbBtn");
+const uploadFileInput = document.getElementById("uploadFileInput");
 
 // NEW: Jira OAuth + Bulk Create buttons (must exist in index.html)
 const btnConnectJira = document.getElementById("btnConnectJira");
@@ -107,6 +109,46 @@ function clearStatusAfter(ms = 3000) {
     statusEl.textContent = "";
     statusClearTimer = null;
   }, ms);
+}
+
+async function uploadFileToDB(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  if (!confirm("Importing a file will overwrite existing data. Continue?")) return;
+
+  statusEl.textContent = "Uploading...";
+
+  // 2. Prepare Data
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("issue_type", document.getElementById("issueType").value);
+
+  try {
+    // 3. Send to API
+    const res = await fetch(`${API_BASE}/upload-file-db`, {
+      method: "POST",
+      body: formData
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(txt);
+    }
+
+    const json = await res.json();
+    
+    // 4. Update UI
+    statusEl.textContent = `Success! Inserted ${json.inserted} rows (${json.mode}).`;
+    await loadFromDB();
+
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = "Upload failed. " + err.message;
+  } finally {
+    // 5. Reset input so you can select the exact same file again if needed
+    e.target.value = ""; 
+  }
 }
 
 function update_columns() {
@@ -725,7 +767,7 @@ async function loadFromDB() {
 }
 
 async function clearDB() {
-  if (!confirm("Delete ALL rows from the database?")) return;
+  if (!confirm("Delete all rows from the database?")) return;
   statusEl.textContent = "Clearing DB…";
   try {
     let selected_value = issueTypeValue.value;
@@ -789,6 +831,14 @@ saveDbBtn.addEventListener("click", saveDB);
 loadDbBtn.addEventListener("click", loadFromDB);
 clearDbBtn.addEventListener("click", clearDB);
 clearBtn.addEventListener("click", clearAll);
+
+if (uploadDbBtn && uploadFileInput) {
+  uploadDbBtn.addEventListener("click", () => {
+    uploadFileInput.click();
+  });
+
+  uploadFileInput.addEventListener("change", uploadFileToDB);
+}
 
 // NEW: Jira buttons (if present)
 if (btnConnectJira) btnConnectJira.addEventListener("click", connectJira);

@@ -1,7 +1,9 @@
-from fastapi import APIRouter, HTTPException, Body, Query
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body, Query
 from fastapi.responses import FileResponse
 from typing import Any, Dict, List
 import csv, os, datetime
+import pandas as pd
+import io
 from pymongo import DESCENDING
 
 from backend.models import Payload
@@ -88,3 +90,90 @@ def list_cases(issue_type: str = Query(...)):
 def clear_cases(issue_type: str = Query(...)):
     res = cases_col.delete_many({"issue_type": issue_type})
     return {"ok": True, "deleted": res.deleted_count}
+
+
+@router.post("/upload-file-db")
+async def upload_file_db(
+    file: UploadFile = File(...),
+    issue_type: str = Form(...),
+):
+    # 1. READ FILE
+    content = await file.read()
+    filename = (file.filename or "").lower()
+
+    try:
+        if filename.endswith(".csv"):
+            df = pd.read_csv(io.BytesIO(content), encoding="utf-8-sig")
+        elif filename.endswith((".xls", ".xlsx")):
+            df = pd.read_excel(io.BytesIO(content))
+        else:
+            raise HTTPException(400, "Invalid file type. Use .csv or .xlsx")
+    except Exception as e:
+        raise HTTPException(400, f"Could not parse file: {str(e)}")
+
+    if df.empty:
+        raise HTTPException(400, "File is empty")
+
+    # 2. NORMALIZE HEADERS
+    # Map common variations to your DB keys
+    col_map = {
+        "Summary": "summary", "Title": "summary",
+        "Issue Type": "issue_type", "Type": "issue_type",
+        "Description": "description",
+        "Link": "link_relates", "Relates": "link_relates",
+        "Assignee": "assignee",
+        "Labels": "labels",
+        "Team": "nsoc_team", "NSOC_Team": "nsoc_team",
+        "Severity": "severity", "Priority": "severity"
+    }
+    
+    # Rename columns based on map (case-insensitive search)
+    new_cols = {}
+    for actual_col in df.columns:
+        clean_col = str(actual_col).strip()
+        # Check if this column matches any of our known keys
+        for key, val in col_map.items():
+            if clean_col.lower() == key.lower():
+                new_cols[actual_col] = val
+                break
+    
+    df.rename(columns=new_cols, inplace=True)
+
+    # 3. PREPARE DATA
+    # Ensure required columns exist, fill missing with empty string
+    required_cols = ["summary", "description", "link_relates", "assignee", "labels", "nsoc_team", "severity"]
+    for col in required_cols:
+        if col not in df.columns:
+            df[col] = ""
+
+    df = df.fillna("") # Remove NaNs
+
+    docs = []
+    for _, row in df.iterrows():
+        # Skip rows that are essentially empty
+        if not any(row[c] for c in required_cols if row[c]):
+            continue
+
+        docs.append({
+            "summary": str(row["summary"]).strip(),
+            "issue_type": issue_type, # Force the selected issue type
+            "description": str(row["description"]).strip(),
+            "link_relates": str(row["link_relates"]).strip(),
+            "assignee": str(row["assignee"]).strip(),
+            "labels": str(row["labels"]).strip(),
+            "nsoc_team": str(row["nsoc_team"]).strip(),
+            "severity": str(row["severity"]).strip(),
+            "created_at": datetime.datetime.utcnow(),
+        })
+
+    if not docs:
+        raise HTTPException(400, "No valid data found in file")
+
+    # 4. SAVE TO DB
+    cases_col.delete_many({"issue_type": issue_type})
+    result = cases_col.insert_many(docs)
+
+    return {
+        "ok": True, 
+        "inserted": len(result.inserted_ids), 
+    }
