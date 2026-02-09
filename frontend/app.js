@@ -15,7 +15,9 @@ const ASSIGNEES = [
 const TEST_TEMPLATE = `--- Your Description Here ---\n\n\n*Preconditions:*\n\n\n*Expected Results:*\n\n\n*Test Type:*\nManual + Auto`;
 const BUG_TEMPLATE  = `--- Your Description Here ---\n\n\n*Steps to Reproduce:*\n\n\n*Expected Results:*\n\n\n*Actual Results:*`;
 
-const LABELS = ["BACKEND", "FRONTEND", "AUTO_TEST", "CYMNG_PPC_FOC", "SA_PPC_FOC"];
+const BUG_LABELS = ["BACKEND", "FRONTEND", "CYMNG_PPC_FOC", "SA_PPC_FOC", "CYMNG_NEW_ARIG", "PL_NEW_ARIG", "SA_NEW_ARIG"];
+const TEST_LABELS = ["AUTO_TEST", "QA_CYMNG", "QA_PL", "QA_SA"];
+
 
 const linkMap = {
   Test: "Link \"Relates\"",
@@ -256,6 +258,7 @@ function parseLabels(str) {
 }
 
 function createLabelsPicker(initialLabels = []) {
+  let selected_value = issueTypeValue.value;
   const selected = new Set(initialLabels);
 
   const wrap = document.createElement("div");
@@ -284,7 +287,11 @@ function createLabelsPicker(initialLabels = []) {
     return btn;
   }
 
-  LABELS.forEach(lbl => wrap.appendChild(makePill(lbl)));
+  if (selected_value === "Test") {
+    TEST_LABELS.forEach(lbl => wrap.appendChild(makePill(lbl)));
+  } else {
+    BUG_LABELS.forEach(lbl => wrap.appendChild(makePill(lbl)));
+  }
   updateHidden();
   wrap.appendChild(hidden);
 
