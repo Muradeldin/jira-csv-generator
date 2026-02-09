@@ -16,7 +16,7 @@ const TEST_TEMPLATE = `--- Your Description Here ---\n\n\n*Preconditions:*\n\n\n
 const BUG_TEMPLATE  = `--- Your Description Here ---\n\n\n*Steps to Reproduce:*\n\n\n*Expected Results:*\n\n\n*Actual Results:*`;
 
 const BUG_LABELS = ["BACKEND", "FRONTEND", "CYMNG_PPC_FOC", "SA_PPC_FOC", "CYMNG_NEW_ARIG", "PL_NEW_ARIG", "SA_NEW_ARIG"];
-const TEST_LABELS = ["AUTO_TEST", "QA_CYMNG", "QA_PL", "QA_SA"];
+const TEST_LABELS = ["AUTO_TEST", "QA_Task", "QA_CYMNG", "QA_PL", "QA_SA"];
 
 
 const linkMap = {
