@@ -6,6 +6,7 @@ db = client[MONGO_DB]
 
 cases_col = db[MONGO_COLLECTION]
 oauth_col = db["oauth_tokens"]
+settings_col = db["settings"]
 
 def ensure_indexes():
     cases_col.create_index([("summary", ASCENDING)])

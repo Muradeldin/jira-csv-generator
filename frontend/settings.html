@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Settings - Jira Bulk Import</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="top-toolbar">
+    <h1>⚙️ Settings</h1>
+    <div class="right-tools">
+      <button class="btn" onclick="window.location.href='/'" style="background:#2a2a2a;color:#fff;">🔙 Back to App</button>
+    </div>
+  </div>
+
+  <div style="max-width: 800px; margin: 0 auto; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 40px;">
+    
+    <div class="settings-tabs">
+      <button class="tab-btn active" data-tab="labelsTab">🏷️ Labels</button>
+      <button class="tab-btn" data-tab="assigneesTab">👥 Assignees</button>
+    </div>
+
+    <div style="padding: 20px;">
+      
+      <div id="labelsTab" class="tab-content active">
+        <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+          <label for="labelTypeSelect" style="font-weight: bold; color: var(--text);">Issue Type:</label>
+          <select id="labelTypeSelect" class="btn" style="width: auto; min-width: 120px;">
+            <option value="Test" selected>Test</option>
+            <option value="Bug">Bug</option>
+          </select>
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-bottom: 15px;">
+          <input type="text" id="newLabelInput" placeholder="New Label...">
+          <button class="btn" id="addLabelBtn">Add Label</button>
+        </div>
+        
+        <div id="labelsContainer" class="labels-picker" style="flex-direction: column; gap: 10px;"></div>
+      </div>
+
+      <div id="assigneesTab" class="tab-content" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+          <h2 style="margin: 0;">Project Assignees</h2>
+          <button class="btn" id="refreshAssigneesBtn" style="background:#0747A6; color:white;">🔄 Fetch from Jira API</button>
+        </div>
+        
+        <p class="small" style="margin-top: 0; margin-bottom: 15px;">Select the users you want to appear in the table dropdowns.</p>
+
+        <div style="margin-bottom: 15px;">
+          <input type="text" id="searchAssigneeInput" placeholder="🔍 Search assignees by name..." style="background: #181818;">
+        </div>
+
+        <div id="assigneesList" style="display: flex; flex-direction: column; gap: 8px;">
+          <p class="small">Click "Fetch from Jira API" to load users.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="settings.js" defer></script>
+</body>
+</html>

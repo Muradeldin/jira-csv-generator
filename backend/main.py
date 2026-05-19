@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.db import ensure_indexes
-from backend.routers import cases, jira
+from backend.routers import cases, jira, settings
 
 app = FastAPI(title="Cases → Jira Bulk Create")
 
@@ -19,3 +19,4 @@ def startup():
 
 app.include_router(cases.router)
 app.include_router(jira.router)
+app.include_router(settings.router)

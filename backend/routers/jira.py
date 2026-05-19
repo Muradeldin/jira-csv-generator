@@ -468,3 +468,48 @@ def jira_bulk_create(
 
     return {"created": created, "jira_base_url": auth.get("cloud_url")}
 
+@router.get("/jira/project-users")
+def jira_project_users():
+    auth = _ensure_valid_access_token()
+    access_token = auth["access_token"]
+    cloud_id = auth["cloud_id"]
+
+    # ONLY search for users explicitly assignable to your project
+    url = f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/user/assignable/search"
+    params = {
+        "project": JIRA_PROJECT_KEY, 
+        "maxResults": 1000 # Bumped to 1000 to prevent pagination cutoffs
+    }
+    
+    r = requests.get(
+        url,
+        headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"},
+        params=params,
+        timeout=30,
+    )
+    
+    # --- TERMINAL DEBUGGING ---
+    print("\n" + "="*40)
+    print("🚨 JIRA USER FETCH DEBUG 🚨")
+    print(f"Targeting Project Key: '{JIRA_PROJECT_KEY}'")
+    print(f"HTTP Status: {r.status_code}")
+    if r.status_code >= 400:
+        print(f"ERROR DETAILS: {r.text}")
+    else:
+        users = r.json()
+        print(f"SUCCESS: Found {len(users)} users assignable to this project.")
+    print("="*40 + "\n")
+    # --------------------------
+
+    if r.status_code >= 400:
+        raise HTTPException(status_code=r.status_code, detail=f"Jira API Error: {r.text}")
+
+    users = r.json()
+    
+    # I removed the 'accountType == atlassian' filter just in case Jira classifies 
+    # your teammates differently in your specific corporate environment.
+    return [{
+        "accountId": u.get("accountId"),
+        "displayName": u.get("displayName"),
+        "emailAddress": u.get("emailAddress") or "hidden-email@jira.local"
+    } for u in users if u.get("active")]
