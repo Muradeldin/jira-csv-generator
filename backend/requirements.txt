@@ -6,5 +6,5 @@ uvicorn==0.38.0
 requests==2.32.3
 pandas==2.2.3
 openpyxl==3.1.5
-python-multipart==0.0.20PyJWT==2.8.0
+python-multipart==0.0.20
 PyJWT==2.8.0
