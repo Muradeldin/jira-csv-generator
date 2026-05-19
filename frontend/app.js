@@ -2,20 +2,12 @@
 const API_BASE = `${location.protocol}//${location.hostname}:8000`;
 
 // ===== UI config =====
-const ASSIGNEES = [
-  "muradn",
-  "rosf",
-  "idanbard",
-  "ilananc",
-  "oriyada",
-  "moranmos",
-  "yotamma"
-];
+let ASSIGNEES = [];
+let BUG_LABELS = ["BACKEND", "FRONTEND", "CYMNG_PPC_FOC", "SA_PPC_FOC", "CYMNG_NEW_ARIG", "PL_NEW_ARIG", "SA_NEW_ARIG"];
+let TEST_LABELS = ["AUTO_TEST", "QA_CYMNG", "QA_PL", "QA_SA"];
 
-const TEST_TEMPLATE = `*Preconditions:*\n\n\n*Expected Results:*\n\n\n*Test Type:*\nManual + Auto`;
-const BUG_TEMPLATE  = `*Steps to Reproduce:*\n\n\n*Expected Results:*\n\n\n*Actual Results:*`;
-
-const LABELS = ["BACKEND", "FRONTEND", "AUTO_TEST", "CYMNG_PPC_FOC", "SA_PPC_FOC"];
+const TEST_TEMPLATE = `--- Your Description Here ---\n\n\n*Preconditions:*\n\n\n*Expected Results:*\n\n\n*Test Type:*\nManual + Auto`;
+const BUG_TEMPLATE  = `--- Your Description Here ---\n\n\n*Steps to Reproduce:*\n\n\n*Expected Results:*\n\n\n*Actual Results:*`;
 
 const linkMap = {
   Test: "Link \"Relates\"",
@@ -30,6 +22,25 @@ const SEVERITY = {
   "5 - Undefined": "5-Undefined"
 };
 
+// Fetch latest settings from MongoDB
+async function loadSettingsFromDB() {
+  try {
+    const res = await fetch(`${API_BASE}/settings`);
+    if (res.ok) {
+      const data = await res.json();
+      
+      // Only overwrite the defaults if the DB actually has saved a real document
+      if (!data.is_empty) { 
+        BUG_LABELS = data.bug_labels || [];
+        TEST_LABELS = data.test_labels || [];
+        ASSIGNEES = data.assignees || [];
+      }
+    }
+  } catch (err) {
+    console.error("Failed to load global settings", err);
+  }
+}
+
 // ===== DOM =====
 const rowsEl    = document.getElementById("rows");
 const addRowBtn = document.getElementById("addRowBtn");
@@ -42,6 +53,8 @@ const clearBtn  = document.getElementById("clearBtn");
 const statusEl  = document.getElementById("status");
 const jiraImportEl = document.getElementById("jira-import");
 const issueTypeValue = document.getElementById("issueType");
+const uploadDbBtn = document.getElementById("uploadDbBtn");
+const uploadFileInput = document.getElementById("uploadFileInput");
 
 // NEW: Jira OAuth + Bulk Create buttons (must exist in index.html)
 const btnConnectJira = document.getElementById("btnConnectJira");
@@ -72,7 +85,7 @@ let activeIssueTypeSelect = null;
 let sourceEl = null;   // original field in the table
 
 // ===== Assignee init (minimal) =====
-let assigneeAccountIdByEmail = {}; // email(lowercase) -> accountId
+let assigneeMap = {}; // Maps legacy string OR accountId -> user info object
 
 async function initAssignees() {
   try {
@@ -80,26 +93,20 @@ async function initAssignees() {
     const sj = await st.json();
     if (!sj.connected) return; // no Jira, keep emails
 
-    for (const email of ASSIGNEES) {
-      let fullEmail = email + "@rafael.co.il";
-      const res = await fetch(`${API_BASE}/jira/user-search?q=${encodeURIComponent(fullEmail)}`);
-      if (!res.ok) continue;
+    const res = await fetch(`${API_BASE}/jira/project-users`);
+    if (!res.ok) return;
 
-      const users = await res.json();
-      if (!Array.isArray(users) || users.length === 0) continue;
+    const users = await res.json();
+    if (!Array.isArray(users)) return;
 
-      const emailLower = fullEmail.toLowerCase();
-
-      // Prefer exact email match (if Jira returns emailAddress)
-      let found = users.find(u => (u.emailAddress || "").toLowerCase() === emailLower && u.accountId);
-
-      // Fallback: single result
-      if (!found && users.length === 1 && users[0]?.accountId) found = users[0];
-
-      if (found?.accountId) {
-        assigneeAccountIdByEmail[email] = found.accountId;
+    users.forEach(u => {
+      // Allow fast lookup by any possible form
+      if (u.accountId) assigneeMap[u.accountId] = u;
+      if (u.emailAddress) {
+        assigneeMap[u.emailAddress.toLowerCase()] = u;
+        assigneeMap[u.emailAddress.split('@')[0].toLowerCase()] = u;
       }
-    }
+    });
   } catch (e) {
     console.warn("initAssignees failed:", e);
   }
@@ -121,6 +128,46 @@ function clearStatusAfter(ms = 3000) {
     statusEl.textContent = "";
     statusClearTimer = null;
   }, ms);
+}
+
+async function uploadFileToDB(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  if (!confirm("Importing a file will overwrite existing data. Continue?")) return;
+
+  statusEl.textContent = "Uploading...";
+
+  // 2. Prepare Data
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("issue_type", document.getElementById("issueType").value);
+
+  try {
+    // 3. Send to API
+    const res = await fetch(`${API_BASE}/upload-file-db`, {
+      method: "POST",
+      body: formData
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(txt);
+    }
+
+    const json = await res.json();
+    
+    // 4. Update UI
+    statusEl.textContent = `Success! Inserted ${json.inserted} rows (${json.mode}).`;
+    await loadFromDB();
+
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = "Upload failed. " + err.message;
+  } finally {
+    // 5. Reset input so you can select the exact same file again if needed
+    e.target.value = ""; 
+  }
 }
 
 function update_columns() {
@@ -241,7 +288,12 @@ function parseLabels(str) {
 }
 
 function createLabelsPicker(initialLabels = []) {
-  const selected = new Set(initialLabels);
+  let selected_value = issueTypeValue.value;
+  
+  const validGlobalLabels = selected_value === "Test" ? TEST_LABELS : BUG_LABELS;
+
+  const cleanedLabels = initialLabels.filter(lbl => validGlobalLabels.includes(lbl));
+  const selected = new Set(cleanedLabels);
 
   const wrap = document.createElement("div");
   wrap.className = "labels-picker";
@@ -260,16 +312,22 @@ function createLabelsPicker(initialLabels = []) {
     btn.className = "label-pill";
     btn.setAttribute("aria-pressed", selected.has(name) ? "true" : "false");
     btn.textContent = name;
+    
     btn.addEventListener("click", () => {
       if (selected.has(name)) selected.delete(name);
       else selected.add(name);
       btn.setAttribute("aria-pressed", selected.has(name) ? "true" : "false");
       updateHidden();
+      
+      // Dispatch an input event so your global auto-save timer catches the click!
+      hidden.dispatchEvent(new Event("input", { bubbles: true }));
     });
     return btn;
   }
 
-  LABELS.forEach(lbl => wrap.appendChild(makePill(lbl)));
+  // Render pills based on global config
+  validGlobalLabels.forEach(lbl => wrap.appendChild(makePill(lbl)));
+  
   updateHidden();
   wrap.appendChild(hidden);
 
@@ -506,11 +564,22 @@ function addRow(initial = {}) {
     opt.selected = true;
     assignee.appendChild(opt);
   }
-  for (const email of ASSIGNEES) {
+  for (const savedId of ASSIGNEES) {
     const opt = document.createElement("option");
-    const id = assigneeAccountIdByEmail[email.toLowerCase()];
-    opt.value = id || email;
-    opt.textContent = email;
+    
+    // Look up by accountId or legacy string
+    const userObj = assigneeMap[savedId.toLowerCase()] || assigneeMap[savedId];
+    
+    if (userObj) {
+      // Requested format: Value is accountId, label is Display Name
+      opt.value = userObj.accountId;
+      opt.textContent = userObj.displayName;
+    } else {
+      // Fallback
+      opt.value = savedId;
+      opt.textContent = savedId;
+    }
+    
     assignee.appendChild(opt);
   }
   if (initial.assignee) {
@@ -868,7 +937,7 @@ async function loadFromDB() {
 }
 
 async function clearDB() {
-  if (!confirm("Delete ALL rows from the database?")) return;
+  if (!confirm("Delete all rows from the database?")) return;
   statusEl.textContent = "Clearing DB…";
   try {
     let selected_value = issueTypeValue.value;
@@ -933,6 +1002,14 @@ loadDbBtn.addEventListener("click", loadFromDB);
 clearDbBtn.addEventListener("click", clearDB);
 clearBtn.addEventListener("click", clearAll);
 
+if (uploadDbBtn && uploadFileInput) {
+  uploadDbBtn.addEventListener("click", () => {
+    uploadFileInput.click();
+  });
+
+  uploadFileInput.addEventListener("change", uploadFileToDB);
+}
+
 // NEW: Jira buttons (if present)
 if (btnConnectJira) btnConnectJira.addEventListener("click", connectJira);
 if (btnCreateJira) btnCreateJira.addEventListener("click", createInJira);
@@ -944,11 +1021,13 @@ if (btnCreateJira) btnCreateJira.addEventListener("click", createInJira);
     location.href = "/login.html";
     return;
   }
+  
+  await loadSettingsFromDB(); 
+  
   await jiraStatus();
   await initAssignees(); 
   addRow();
   await loadFromDB();
   update_columns();
   setInterval(jiraStatus, 15000);
-  test_styles();
 })();

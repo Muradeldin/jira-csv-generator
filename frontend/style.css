@@ -285,3 +285,53 @@ body.modal-open {
   table-layout: fixed;
   width: 100%;
 }
+
+#stepsOverlay .modal {
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+  width: min(900px, 95vw);
+}
+
+#stepsOverlay .modal-body {
+  flex: 1;
+  overflow: auto;
+  padding-bottom: 12px;
+}
+
+#stepsOverlay textarea {
+  width: 100%;
+  min-height: 64px;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+#stepsOverlay table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.settings-tabs {
+  display: flex;
+  background: #2a2a2a;
+  border-bottom: 1px solid var(--border);
+}
+.tab-btn {
+  flex: 1; padding: 12px; background: transparent; border: none;
+  color: var(--muted); cursor: pointer; font-weight: 600; transition: 0.2s;
+}
+.tab-btn:hover { background: #3a3a3a; color: var(--text); }
+.tab-btn.active { color: #fff; border-bottom: 3px solid #0747A6; background: #1e1e1e; }
+
+.deletable-pill {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
+  border-radius: 999px; background: #2a2a2a; border: 1px solid var(--border);
+  color: var(--text); font-size: 12px;
+}
+.deletable-pill .del-x { cursor: pointer; color: #ff4d4d; font-weight: bold; }
+.deletable-pill .del-x:hover { color: #ff1a1a; }
+
+.assignee-item {
+  display: flex; align-items: center; gap: 10px; background: #252525;
+  padding: 10px; border-radius: 6px; border: 1px solid var(--border);
+}
