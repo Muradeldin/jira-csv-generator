@@ -259,6 +259,8 @@ def _parse_bulk_index_map(resp_json: Dict[str, Any], n_updates: int) -> Dict[int
     return mapping
 
 
+
+
 def _create_issue_link(cloud_id: str, access_token: str, link_type: str, from_key: str, to_key: str) -> Dict[str, Any]:
     url = f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/issueLink"
     body = {
@@ -455,7 +457,10 @@ def jira_bulk_create(
 
     bulk_json = resp.json()
 
-    idx_to_key, idx_to_id = _parse_bulk_index_maps(bulk_json, len(issue_updates))
+    bulk_mapping = _parse_bulk_index_map(bulk_json, len(issue_updates))
+    idx_to_key = {idx: v["key"] for idx, v in bulk_mapping.items()}
+    idx_to_id = {idx: v["id"] for idx, v in bulk_mapping.items()}
+    
     created = [
         {"index": idx, "key": key}
         for idx, key in sorted(idx_to_key.items(), key=lambda x: x[0])
@@ -518,19 +523,6 @@ def jira_project_users():
         params=params,
         timeout=30,
     )
-    
-    # --- TERMINAL DEBUGGING ---
-    print("\n" + "="*40)
-    print("🚨 JIRA USER FETCH DEBUG 🚨")
-    print(f"Targeting Project Key: '{JIRA_PROJECT_KEY}'")
-    print(f"HTTP Status: {r.status_code}")
-    if r.status_code >= 400:
-        print(f"ERROR DETAILS: {r.text}")
-    else:
-        users = r.json()
-        print(f"SUCCESS: Found {len(users)} users assignable to this project.")
-    print("="*40 + "\n")
-    # --------------------------
 
     if r.status_code >= 400:
         raise HTTPException(status_code=r.status_code, detail=f"Jira API Error: {r.text}")

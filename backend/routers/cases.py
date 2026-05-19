@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body, Query
 from fastapi.responses import FileResponse
 from typing import Any, Dict, List
-import csv, os, datetime
+import csv, os, datetime, json
 import pandas as pd
 import io
 from pymongo import DESCENDING
@@ -11,7 +11,8 @@ from backend.db import cases_col
 
 router = APIRouter(tags=["cases"])
 
-TEST_HEADERS = ['Summary', 'Issue Type', 'Description', 'Link "Relates"', 'Assignee', 'Labels', 'NSOC_Team', 'Severity']
+# ADDED 'Test Steps' to the end of the Test headers
+TEST_HEADERS = ['Summary', 'Issue Type', 'Description', 'Link "Relates"', 'Assignee', 'Labels', 'NSOC_Team', 'Severity', 'Test Steps']
 BUG_HEADERS  = ['Summary', 'Issue Type', 'Description', 'Link "Problem/Incident"', 'Assignee', 'Labels', 'NSOC_Team', 'Severity']
 Headers = {"Test": TEST_HEADERS, "Bug": BUG_HEADERS}
 
@@ -35,7 +36,16 @@ def save_csv(payload: Payload, issue_type: str = Query(...)):
         writer = csv.writer(f)
         writer.writerow(Headers[issue_type])
         for r in rows:
-            writer.writerow([r.summary, r.issue_type, r.description, r.link_relates, r.assignee, r.labels, r.nsoc_team, r.severity])
+            base_row = [r.summary, r.issue_type, r.description, r.link_relates, r.assignee, r.labels, r.nsoc_team, r.severity]
+            
+            # If it's a Test, serialize the steps into a JSON string for the CSV column
+            if issue_type == "Test":
+                steps_str = ""
+                if r.steps:
+                    steps_str = json.dumps([s.model_dump() if hasattr(s, "model_dump") else s.dict() for s in r.steps])
+                writer.writerow(base_row + [steps_str])
+            else:
+                writer.writerow(base_row)
 
     return {"ok": True, "filename": filename}
 
@@ -65,7 +75,7 @@ def save_db(payload: Dict[str, Any] = Body(...), issue_type: str = Query(...)):
 
         if any([
             r.get("summary"), r.get("issue_type"), r.get("description"), r.get("link_relates"),
-            r.get("assignee"), r.get("labels"), r.get("nsoc_team"), r.get("severity", has_steps)
+            r.get("assignee"), r.get("labels"), r.get("nsoc_team"), r.get("severity"), has_steps
         ]):
             issue_type_row = str(r.get("issue_type", "")).strip()
 
@@ -83,7 +93,6 @@ def save_db(payload: Dict[str, Any] = Body(...), issue_type: str = Query(...)):
                         "data": str(s.get("data", "")).strip(),
                         "result": str(s.get("result", "")).strip(),
                     })
-
             
             docs.append({
                 "summary": str(r.get("summary", "")).strip(),
@@ -138,7 +147,6 @@ async def upload_file_db(
         raise HTTPException(400, "File is empty")
 
     # 2. NORMALIZE HEADERS
-    # Map common variations to your DB keys
     col_map = {
         "Summary": "summary", "Title": "summary",
         "Issue Type": "issue_type", "Type": "issue_type",
@@ -147,14 +155,13 @@ async def upload_file_db(
         "Assignee": "assignee",
         "Labels": "labels",
         "Team": "nsoc_team", "NSOC_Team": "nsoc_team",
-        "Severity": "severity", "Priority": "severity"
+        "Severity": "severity", "Priority": "severity",
+        "Test Steps": "steps", "Steps": "steps" # Map Steps column
     }
     
-    # Rename columns based on map (case-insensitive search)
     new_cols = {}
     for actual_col in df.columns:
         clean_col = str(actual_col).strip()
-        # Check if this column matches any of our known keys
         for key, val in col_map.items():
             if clean_col.lower() == key.lower():
                 new_cols[actual_col] = val
@@ -163,29 +170,58 @@ async def upload_file_db(
     df.rename(columns=new_cols, inplace=True)
 
     # 3. PREPARE DATA
-    # Ensure required columns exist, fill missing with empty string
     required_cols = ["summary", "description", "link_relates", "assignee", "labels", "nsoc_team", "severity"]
-    for col in required_cols:
+    
+    # Ensure all required columns AND steps exist
+    for col in required_cols + ["steps"]:
         if col not in df.columns:
             df[col] = ""
 
-    df = df.fillna("") # Remove NaNs
+    df = df.fillna("") 
 
     docs = []
     for _, row in df.iterrows():
-        # Skip rows that are essentially empty
         if not any(row[c] for c in required_cols if row[c]):
             continue
 
+        # --- SMART STEP PARSER ---
+        steps_raw = str(row.get("steps", "")).strip()
+        parsed_steps = []
+        
+        # Only parse steps if it's a Test
+        if steps_raw and issue_type == "Test":
+            try:
+                # First try to parse it as JSON (If it was exported from our app)
+                parsed_list = json.loads(steps_raw)
+                if isinstance(parsed_list, list):
+                    for s in parsed_list:
+                        if isinstance(s, dict):
+                            parsed_steps.append({
+                                "step": str(s.get("step", "")).strip(),
+                                "data": str(s.get("data", "")).strip(),
+                                "result": str(s.get("result", "")).strip(),
+                            })
+            except json.JSONDecodeError:
+                # Fallback: If a human typed multiline text in Excel, treat each line as a step!
+                lines = steps_raw.split('\n')
+                for line in lines:
+                    if line.strip():
+                        parsed_steps.append({
+                            "step": line.strip(),
+                            "data": "",
+                            "result": ""
+                        })
+
         docs.append({
             "summary": str(row["summary"]).strip(),
-            "issue_type": issue_type, # Force the selected issue type
+            "issue_type": issue_type,
             "description": str(row["description"]).strip(),
             "link_relates": str(row["link_relates"]).strip(),
             "assignee": str(row["assignee"]).strip(),
             "labels": str(row["labels"]).strip(),
             "nsoc_team": str(row["nsoc_team"]).strip(),
             "severity": str(row["severity"]).strip(),
+            "steps": parsed_steps,
             "created_at": datetime.datetime.utcnow(),
         })
 
@@ -199,4 +235,5 @@ async def upload_file_db(
     return {
         "ok": True, 
         "inserted": len(result.inserted_ids), 
+        "mode": "overwrite"
     }

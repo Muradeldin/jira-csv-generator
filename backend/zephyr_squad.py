@@ -54,10 +54,12 @@ def add_test_steps(issue_id: str, steps: List[Dict[str, str]]) -> List[Dict[str,
 
     results = []
     for s in steps:
+        # Check if s is a Pydantic model and convert to dict if needed
+        s_dict = s.model_dump() if hasattr(s, "model_dump") else (s.dict() if hasattr(s, "dict") else s)
         body = {
-            "step": (s.get("step") or "").strip(),
-            "data": (s.get("data") or "").strip(),
-            "result": (s.get("result") or "").strip(),
+            "step": (s_dict.get("step") or "").strip(),
+            "data": (s_dict.get("data") or "").strip(),
+            "result": (s_dict.get("result") or "").strip(),
         }
         # skip totally empty lines
         if not (body["step"] or body["data"] or body["result"]):
